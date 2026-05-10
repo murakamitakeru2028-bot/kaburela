@@ -210,6 +210,46 @@ function ChartPreview() {
   )
 }
 
+function TrendPreview({ pair }: { pair: PairSummary | null }) {
+  const delta = pair ? Math.min(0.46, Math.max(-0.46, pair.corr * 0.42)) : 0.28
+  const before = pair ? pair.corr - delta : 0.24
+  const after = pair ? pair.corr : 0.62
+  const shift = after - before
+
+  return (
+    <div className="w-full space-y-4">
+      <div className="grid grid-cols-[58px_minmax(0,1fr)_54px] items-center gap-3">
+        <span className="text-[11px] font-mono text-muted">基準</span>
+        <span className="h-2 rounded-full bg-subtle overflow-hidden">
+          <span
+            className="block h-full rounded-full"
+            style={{ width: `${Math.max(8, Math.abs(before) * 100)}%`, backgroundColor: before >= 0 ? ACCENTS.ranking : '#ff4f5e', opacity: 0.48 }}
+          />
+        </span>
+        <span className="text-[11px] font-mono font-semibold text-ink tabular-nums text-right">{formatCorr(before)}</span>
+      </div>
+      <div className="grid grid-cols-[58px_minmax(0,1fr)_54px] items-center gap-3">
+        <span className="text-[11px] font-mono text-muted">短期</span>
+        <span className="h-2 rounded-full bg-subtle overflow-hidden">
+          <span
+            className="block h-full rounded-full"
+            style={{ width: `${Math.max(8, Math.abs(after) * 100)}%`, backgroundColor: after >= 0 ? ACCENTS.ranking : '#ff4f5e', opacity: 0.86 }}
+          />
+        </span>
+        <span className="text-[11px] font-mono font-semibold text-ink tabular-nums text-right">{formatCorr(after)}</span>
+      </div>
+      <div className="rounded-[8px] border border-border bg-bg px-3 py-2 flex items-center justify-between gap-3">
+        <span className="min-w-0 truncate text-[11px] font-mono text-muted">
+          {pair ? `${pair.labelA} / ${pair.labelB}` : '変化ペア'}
+        </span>
+        <span className="text-[13px] font-mono font-semibold tabular-nums" style={{ color: shift >= 0 ? ACCENTS.ranking : '#ff4f5e' }}>
+          {shift >= 0 ? '+' : ''}{shift.toFixed(2)}
+        </span>
+      </div>
+    </div>
+  )
+}
+
 function MacroPreview() {
   const rows = [
     { label: 'USD/JPY', value: 72, color: ACCENTS.network },
@@ -390,10 +430,11 @@ export function HomeView({ onNavigate, sectors, correlation, health, period }: P
   ]
 
   const workflow = [
-    ['1', 'ヒートマップで全体を見る', '色の固まりから、同じ方向に動く銘柄群とズレている銘柄を探します。'],
-    ['2', 'ネットワークで関係を追う', '中心にいる銘柄やセクターをまたぐ連動を確認します。'],
-    ['3', 'ランキングで候補を絞る', '高相関・低相関のペアを順位で見て、気になる組み合わせを拾います。'],
-    ['4', 'チャートで値動きを確認する', '相関だけで判断せず、実際の価格推移とリターンを比較します。'],
+    ['1', 'トレンドで変化を見る', '最近つながりが強まった/弱まった銘柄ペアを先に拾います。'],
+    ['2', 'ヒートマップで全体を見る', '色の固まりから、同じ方向に動く銘柄群とズレている銘柄を探します。'],
+    ['3', 'ネットワークで関係を追う', '中心にいる銘柄やセクターをまたぐ連動を確認します。'],
+    ['4', 'ランキングで候補を絞る', '高相関・低相関のペアを順位で見て、気になる組み合わせを拾います。'],
+    ['5', 'チャートで値動きを確認する', '相関だけで判断せず、実際の価格推移とリターンを比較します。'],
   ] as const
 
   return (
@@ -546,7 +587,7 @@ export function HomeView({ onNavigate, sectors, correlation, health, period }: P
           </p>
         </div>
 
-        <div className="mt-6 grid gap-3 md:grid-cols-4">
+        <div className="mt-6 grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))' }}>
           {workflow.map(([step, title, text]) => (
             <div key={step} className="rounded-[8px] border border-border bg-paper p-4">
               <span className="h-7 w-7 rounded-[7px] bg-ink text-paper text-[12px] font-mono flex items-center justify-center">{step}</span>
@@ -570,15 +611,29 @@ export function HomeView({ onNavigate, sectors, correlation, health, period }: P
 
         <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           <FeatureCard
+            view="trend"
+            index="01 / Trend"
+            title="トレンド"
+            desc="短期相関と長期相関を比較し、最近つながりが強まった/弱まった銘柄ペアを検知します。"
+            insight="今まで目立たなかった連動、崩れ始めた関係、正負が反転したペアを見つけられます。"
+            useCase="直近で市場の見え方が変わった銘柄を探したい時。"
+            accent={ACCENTS.network}
+            onNavigate={onNavigate}
+            delay={0}
+          >
+            <TrendPreview pair={heroPair} />
+          </FeatureCard>
+
+          <FeatureCard
             view="heatmap"
-            index="01 / Heatmap"
+            index="02 / Heatmap"
             title="ヒートマップ"
             desc="セクターごとに銘柄間の相関を色で表示します。緑は同じ方向、赤は逆方向、薄い色は関係が弱い組み合わせです。"
             insight="同じ業種の中でまとまって動く銘柄群、または同業なのに動きが違う銘柄を見つけられます。"
             useCase="まず市場全体を眺めたい時、セクター内の偏りを確認したい時。"
             accent={ACCENTS.heatmap}
             onNavigate={onNavigate}
-            delay={0}
+            delay={70}
           >
             <div className="w-full max-w-[190px]">
               <MiniCorrGrid matrix={previewSector?.matrix ?? []} isDark={isDark} />
@@ -591,14 +646,14 @@ export function HomeView({ onNavigate, sectors, correlation, health, period }: P
 
           <FeatureCard
             view="network"
-            index="02 / Network"
+            index="03 / Network"
             title="ネットワーク"
             desc="相関が強い銘柄同士を線で結びます。線が多い銘柄ほど、他の銘柄と連動しやすい状態です。"
             insight="中心にいる銘柄、孤立している銘柄、セクターをまたいだ連動を視覚的に追えます。"
             useCase="銘柄同士のつながりを直感的に見たい時、テーマ株のまとまりを探したい時。"
             accent={ACCENTS.network}
             onNavigate={onNavigate}
-            delay={70}
+            delay={140}
           >
             {correlation ? (
               <MiniNetworkSvg stocks={correlation.stocks} matrix={correlation.matrix} isDark={isDark} />
@@ -609,42 +664,42 @@ export function HomeView({ onNavigate, sectors, correlation, health, period }: P
 
           <FeatureCard
             view="macro"
-            index="03 / Macro"
+            index="04 / Macro"
             title="マクロ"
             desc="為替、指数、金利、商品などの外部要因と、銘柄・セクターの連動を確認します。"
             insight="市場全体の風向きに対して、どのセクターや銘柄が反応しやすいかを見られます。"
             useCase="円安・金利・米国株・商品価格などの影響を整理したい時。"
             accent={ACCENTS.macro}
             onNavigate={onNavigate}
-            delay={140}
+            delay={210}
           >
             <MacroPreview />
           </FeatureCard>
 
           <FeatureCard
             view="ranking"
-            index="04 / Ranking"
+            index="05 / Ranking"
             title="ランキング"
             desc="相関が高いペア、低いペアを順位で並べます。数字で候補を絞り込むためのタブです。"
             insight="同じように動くペア、逆に動きやすいペアを短時間で拾えます。"
             useCase="分散候補、比較候補、ペアトレード候補を探したい時。"
             accent={ACCENTS.ranking}
             onNavigate={onNavigate}
-            delay={210}
+            delay={280}
           >
             <RankingPreview pairs={pairSummaries.positive.length ? pairSummaries.positive : pairSummaries.negative} />
           </FeatureCard>
 
           <FeatureCard
             view="chart"
-            index="05 / Chart"
+            index="06 / Chart"
             title="チャート"
             desc="個別銘柄やセクター指数を並べて、価格推移とリターンを比較します。"
             insight="相関が高く見える理由が、同時期の上昇なのか、長期トレンドなのか、急落局面なのかを確認できます。"
             useCase="ヒートマップやランキングで見つけたペアを最後に検証したい時。"
             accent={ACCENTS.chart}
             onNavigate={onNavigate}
-            delay={280}
+            delay={350}
           >
             <ChartPreview />
           </FeatureCard>

@@ -4,6 +4,7 @@ import { Header } from './components/layout/Header'
 import { LoadingView, ErrorView } from './components/layout/StatusViews'
 import { DataSummaryBar } from './components/layout/DataSummaryBar'
 import { HomeView } from './components/home/HomeView'
+import { TrendView } from './components/charts/TrendView'
 import { SectorHeatmaps } from './components/charts/SectorHeatmaps'
 import { NetworkGraph } from './components/charts/NetworkGraph'
 import { RankingView } from './components/charts/RankingView'
@@ -125,6 +126,16 @@ function AppInner() {
     if (isLoading) return <LoadingView />
     if (error) return <ErrorView message={error} />
 
+    if (currentView === 'trend') {
+      return (
+        <TrendView
+          period={period}
+          sectors={filteredSectors}
+          minCorr={effectiveFilter.minCorr}
+          onStockSelect={handleSearchSelect}
+        />
+      )
+    }
     if (currentView === 'heatmap') {
       return <SectorHeatmaps sectors={filteredSectors} minCorr={effectiveFilter.minCorr} onStockSelect={handleSearchSelect} />
     }
