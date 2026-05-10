@@ -27,6 +27,15 @@ const ACCENTS = {
   chart: '#725cff',
 } as const
 
+const SESSION_ESTIMATE: Record<Period, number> = {
+  '1M': 21,
+  '3M': 63,
+  '6M': 126,
+  '1Y': 252,
+  '3Y': 756,
+  '5Y': 1260,
+}
+
 function formatDateTime(value: string | null | undefined): string {
   if (!value) return '未取得'
   const date = new Date(value)
@@ -140,42 +149,17 @@ function MiniNetworkSvg({ stocks, matrix, isDark }: {
         })
       )}
       {points.slice(0, n).map((point, index) => (
-        <g key={index}>
-          <circle
-            cx={point.x}
-            cy={point.y}
-            r={6}
-            fill={isDark ? '#1c1c1e' : '#ffffff'}
-            stroke={index % 3 === 0 ? ACCENTS.heatmap : index % 3 === 1 ? ACCENTS.network : ACCENTS.macro}
-            strokeWidth={1.6}
-          />
-        </g>
+        <circle
+          key={index}
+          cx={point.x}
+          cy={point.y}
+          r={6}
+          fill={isDark ? '#1c1c1e' : '#ffffff'}
+          stroke={index % 3 === 0 ? ACCENTS.heatmap : index % 3 === 1 ? ACCENTS.network : ACCENTS.macro}
+          strokeWidth={1.6}
+        />
       ))}
     </svg>
-  )
-}
-
-function MacroPreview() {
-  const rows = [
-    { label: 'USD/JPY', value: 72, color: ACCENTS.network },
-    { label: 'NASDAQ', value: 56, color: ACCENTS.heatmap },
-    { label: 'WTI', value: 38, color: ACCENTS.macro },
-    { label: '10Y JGB', value: 64, color: ACCENTS.ranking },
-  ]
-  return (
-    <div className="w-full space-y-3">
-      {rows.map(row => (
-        <div key={row.label} className="grid grid-cols-[76px_minmax(0,1fr)] items-center gap-3">
-          <span className="text-[11px] font-mono text-muted">{row.label}</span>
-          <span className="h-2 rounded-full bg-subtle overflow-hidden">
-            <span
-              className="block h-full rounded-full"
-              style={{ width: `${row.value}%`, backgroundColor: row.color, opacity: 0.78 }}
-            />
-          </span>
-        </div>
-      ))}
-    </div>
   )
 }
 
@@ -226,11 +210,36 @@ function ChartPreview() {
   )
 }
 
-function StatPill({ label, value }: { label: string; value: string | number }) {
+function MacroPreview() {
+  const rows = [
+    { label: 'USD/JPY', value: 72, color: ACCENTS.network },
+    { label: 'NASDAQ', value: 56, color: ACCENTS.heatmap },
+    { label: 'WTI', value: 38, color: ACCENTS.macro },
+    { label: '10Y JGB', value: 64, color: ACCENTS.ranking },
+  ]
+  return (
+    <div className="w-full space-y-3">
+      {rows.map(row => (
+        <div key={row.label} className="grid grid-cols-[76px_minmax(0,1fr)] items-center gap-3">
+          <span className="text-[11px] font-mono text-muted">{row.label}</span>
+          <span className="h-2 rounded-full bg-subtle overflow-hidden">
+            <span
+              className="block h-full rounded-full"
+              style={{ width: `${row.value}%`, backgroundColor: row.color, opacity: 0.78 }}
+            />
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function StatPill({ label, value, hint }: { label: string; value: string | number; hint: string }) {
   return (
     <div className="min-w-0 border-y border-border py-2">
       <p className="text-[10px] font-mono uppercase tracking-[0.12em] text-muted truncate">{label}</p>
       <p className="mt-1 text-[20px] font-semibold tracking-[-0.3px] text-ink tabular-nums truncate">{value}</p>
+      <p className="mt-1 text-[10px] text-muted truncate">{hint}</p>
     </div>
   )
 }
@@ -242,8 +251,8 @@ function PairFocusPanel({ pair }: { pair: PairSummary | null }) {
   return (
     <div className="h-full flex flex-col justify-between gap-5">
       <div className="flex items-center justify-between gap-4">
-        <span className="text-[10px] font-mono uppercase tracking-[0.14em] text-muted">Pair focus</span>
-        <span className="text-[11px] font-mono text-muted">strongest</span>
+        <span className="text-[10px] font-mono uppercase tracking-[0.14em] text-muted">注目ペア</span>
+        <span className="text-[11px] font-mono text-muted">絶対値最大</span>
       </div>
 
       <div className="grid grid-cols-[minmax(0,1fr)_34px_minmax(0,1fr)] items-center gap-3">
@@ -262,7 +271,7 @@ function PairFocusPanel({ pair }: { pair: PairSummary | null }) {
 
       <div>
         <div className="flex items-end justify-between gap-4">
-          <span className="text-[11px] font-mono text-muted">correlation</span>
+          <span className="text-[11px] font-mono text-muted">相関係数</span>
           <span className="text-[34px] leading-none font-semibold tracking-[-0.7px] tabular-nums" style={{ color: tone }}>
             {pair ? formatCorr(pair.corr) : '--'}
           </span>
@@ -270,16 +279,30 @@ function PairFocusPanel({ pair }: { pair: PairSummary | null }) {
         <div className="mt-3 h-2 rounded-full bg-subtle overflow-hidden">
           <span className="block h-full rounded-full" style={{ width: `${strength}%`, backgroundColor: tone }} />
         </div>
+        <p className="mt-2 text-[11px] leading-relaxed text-muted">
+          +に近いほど同じ方向、-に近いほど逆方向に動きやすいペアです。
+        </p>
       </div>
     </div>
   )
 }
 
-function FeatureCard({ view, kicker, title, desc, accent, children, onNavigate, delay }: {
+function InfoPanel({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="rounded-[8px] border border-border bg-paper p-5">
+      <h3 className="text-[15px] font-semibold tracking-[-0.2px] text-ink">{title}</h3>
+      {children}
+    </section>
+  )
+}
+
+function FeatureCard({ view, index, title, desc, insight, useCase, accent, children, onNavigate, delay }: {
   view: View
-  kicker: string
+  index: string
   title: string
   desc: string
+  insight: string
+  useCase: string
   accent: string
   children: ReactNode
   onNavigate: (view: View) => void
@@ -289,14 +312,14 @@ function FeatureCard({ view, kicker, title, desc, accent, children, onNavigate, 
     <button
       type="button"
       onClick={() => onNavigate(view)}
-      className="group min-h-[300px] rounded-[8px] border border-border bg-paper text-left overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:border-muted hover:shadow-[0_18px_50px_rgba(0,0,0,0.12)]"
+      className="group min-h-[360px] rounded-[8px] border border-border bg-paper text-left overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:border-muted hover:shadow-[0_18px_50px_rgba(0,0,0,0.12)]"
       style={{ animation: `fade-up 0.48s cubic-bezier(0.16,1,0.3,1) both ${delay}ms` }}
     >
       <div className="h-full flex flex-col">
         <div className="flex items-center justify-between gap-3 px-5 pt-5">
           <div className="min-w-0">
-            <p className="text-[10px] font-mono uppercase tracking-[0.14em] text-muted truncate">{kicker}</p>
-            <h3 className="mt-1 text-[18px] font-semibold tracking-[-0.2px] text-ink truncate">{title}</h3>
+            <p className="text-[10px] font-mono uppercase tracking-[0.14em] text-muted truncate">{index}</p>
+            <h3 className="mt-1 text-[19px] font-semibold tracking-[-0.25px] text-ink truncate">{title}</h3>
           </div>
           <span
             className="h-9 w-9 rounded-[8px] flex items-center justify-center text-paper shrink-0 transition-transform duration-300 group-hover:translate-x-0.5"
@@ -305,12 +328,22 @@ function FeatureCard({ view, kicker, title, desc, accent, children, onNavigate, 
             <ArrowIcon />
           </span>
         </div>
-        <div className="min-h-[150px] flex-1 flex items-center justify-center px-5 py-4">
-          {children}
-        </div>
-        <p className="border-t border-border px-5 py-4 text-[12px] leading-relaxed text-muted">
+        <p className="px-5 pt-3 text-[12px] leading-relaxed text-muted">
           {desc}
         </p>
+        <div className="min-h-[140px] flex items-center justify-center px-5 py-4">
+          {children}
+        </div>
+        <div className="mt-auto border-t border-border px-5 py-4 grid gap-3">
+          <div>
+            <p className="text-[10px] font-mono uppercase tracking-[0.12em] text-muted">分かること</p>
+            <p className="mt-1 text-[12px] leading-relaxed text-ink">{insight}</p>
+          </div>
+          <div>
+            <p className="text-[10px] font-mono uppercase tracking-[0.12em] text-muted">使う場面</p>
+            <p className="mt-1 text-[12px] leading-relaxed text-ink">{useCase}</p>
+          </div>
+        </div>
       </div>
     </button>
   )
@@ -322,6 +355,7 @@ export function HomeView({ onNavigate, sectors, correlation, health, period }: P
   const previewSector = sectors.find(sector => sector.matrix.length >= 4) ?? sectors[0] ?? null
   const lastBatch = health?.last_batch
   const updatedAt = formatDateTime(lastBatch?.finished_at ?? lastBatch?.started_at)
+  const pairCount = correlation ? correlation.stocks.length * (correlation.stocks.length - 1) / 2 : 0
 
   const pairSummaries = useMemo(() => {
     if (!correlation) return { positive: [] as PairSummary[], negative: [] as PairSummary[], strongestAbs: null as PairSummary | null }
@@ -342,11 +376,25 @@ export function HomeView({ onNavigate, sectors, correlation, health, period }: P
 
   const heroPair = pairSummaries.strongestAbs
   const heroStats = [
-    { label: 'Universe', value: stockCount || '-' },
-    { label: 'Sectors', value: sectors.length || '-' },
-    { label: 'Window', value: period },
-    { label: 'Updated', value: updatedAt },
+    { label: '銘柄数', value: stockCount || '-', hint: '分析対象の銘柄' },
+    { label: 'セクター', value: sectors.length || '-', hint: '業種グループ' },
+    { label: '期間', value: period, hint: `約${SESSION_ESTIMATE[period]}営業日` },
+    { label: '更新', value: updatedAt, hint: '静的データの時刻' },
   ]
+
+  const readingGuide = [
+    { label: '+0.70 以上', color: ACCENTS.ranking, text: 'かなり同じ方向に動きやすい。代替候補や同時保有の偏りを確認。' },
+    { label: '+0.30 から +0.70', color: ACCENTS.network, text: 'ゆるく連動。テーマや市況の影響を受けている可能性。' },
+    { label: '-0.30 以下', color: '#ff4f5e', text: '逆方向に動きやすい。ヘッジ候補や分散候補として確認。' },
+    { label: '0 付近', color: 'var(--color-muted)', text: '関係が薄い、または期間内では方向感が出ていない組み合わせ。' },
+  ]
+
+  const workflow = [
+    ['1', 'ヒートマップで全体を見る', '色の固まりから、同じ方向に動く銘柄群とズレている銘柄を探します。'],
+    ['2', 'ネットワークで関係を追う', '中心にいる銘柄やセクターをまたぐ連動を確認します。'],
+    ['3', 'ランキングで候補を絞る', '高相関・低相関のペアを順位で見て、気になる組み合わせを拾います。'],
+    ['4', 'チャートで値動きを確認する', '相関だけで判断せず、実際の価格推移とリターンを比較します。'],
+  ] as const
 
   return (
     <div className="min-h-full w-full max-w-7xl mx-auto px-1 sm:px-2 lg:px-4 py-6 lg:py-8">
@@ -362,18 +410,32 @@ export function HomeView({ onNavigate, sectors, correlation, health, period }: P
           <div className="relative z-10 max-w-3xl">
             <div className="inline-flex items-center gap-2 border border-border bg-paper/85 backdrop-blur px-3 h-8 rounded-full">
               <span className="w-2 h-2 rounded-full" style={{ backgroundColor: ACCENTS.heatmap }} />
-              <span className="text-[11px] font-mono uppercase tracking-[0.12em] text-muted">Market correlation cockpit</span>
+              <span className="text-[11px] font-mono uppercase tracking-[0.12em] text-muted">相関分析ダッシュボード</span>
             </div>
 
             <h1 className="mt-5 text-[44px] sm:text-[58px] lg:text-[72px] leading-[0.92] font-semibold tracking-[-1.4px] text-ink">
               Kaburela
             </h1>
             <p className="mt-5 max-w-2xl text-[15px] sm:text-[16px] leading-7 text-muted">
-              東証銘柄の「一緒に動く」「逆に動く」を、ヒートマップ、ネットワーク、ランキング、チャートで横断して読むための相関分析ツールです。
+              東証銘柄の「同じ方向に動きやすい」「逆方向に動きやすい」を可視化するツールです。
+              セクター全体の傾向を掴み、気になる銘柄ペアを見つけ、最後にチャートで値動きを確認できます。
             </p>
 
+            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+              {[
+                ['全体像', 'セクター別の相関を色で俯瞰'],
+                ['関係性', '強くつながる銘柄をネットワークで確認'],
+                ['深掘り', 'ランキングとチャートで銘柄ペアを検証'],
+              ].map(([label, text]) => (
+                <div key={label} className="rounded-[8px] border border-border bg-paper/85 px-4 py-3">
+                  <p className="text-[12px] font-semibold text-ink">{label}</p>
+                  <p className="mt-1 text-[11px] leading-relaxed text-muted">{text}</p>
+                </div>
+              ))}
+            </div>
+
             <div className="mt-7 grid grid-cols-2 sm:grid-cols-4 gap-4">
-              {heroStats.map(stat => <StatPill key={stat.label} label={stat.label} value={stat.value} />)}
+              {heroStats.map(stat => <StatPill key={stat.label} label={stat.label} value={stat.value} hint={stat.hint} />)}
             </div>
 
             <div className="mt-7 flex flex-wrap items-center gap-3">
@@ -382,51 +444,51 @@ export function HomeView({ onNavigate, sectors, correlation, health, period }: P
                 onClick={() => onNavigate('heatmap')}
                 className="h-11 px-5 rounded-[8px] bg-ink text-paper text-[13px] font-semibold flex items-center gap-2 transition-transform hover:-translate-y-0.5"
               >
-                相関を俯瞰する
+                まず全体を見る
                 <ArrowIcon />
               </button>
               <button
                 type="button"
-                onClick={() => onNavigate('chart')}
+                onClick={() => onNavigate('ranking')}
                 className="h-11 px-5 rounded-[8px] border border-border bg-paper text-[13px] font-semibold text-ink flex items-center gap-2 transition-colors hover:border-muted"
               >
-                銘柄を比較する
+                注目ペアを見る
                 <ArrowIcon />
               </button>
             </div>
           </div>
 
-          <div className="relative min-h-[360px] lg:min-h-[430px]">
+          <div className="relative min-h-[380px] lg:min-h-[440px]">
             <div className="absolute right-0 top-0 w-[74%] max-w-[360px] border border-border bg-paper p-4 rounded-[8px] shadow-[0_18px_50px_rgba(0,0,0,0.10)]">
               <div className="flex items-center justify-between mb-4">
-                <span className="text-[10px] font-mono uppercase tracking-[0.14em] text-muted">Signal map</span>
+                <span className="text-[10px] font-mono uppercase tracking-[0.14em] text-muted">相関マップ</span>
                 <span className="text-[11px] font-mono text-ink tabular-nums">{period}</span>
               </div>
               <HeroSignalGrid correlation={correlation} isDark={isDark} />
             </div>
 
-            <div className="absolute left-0 top-[108px] w-[70%] max-w-[330px] min-h-[220px] border border-border bg-paper p-5 rounded-[8px] shadow-[0_18px_50px_rgba(0,0,0,0.10)]">
+            <div className="absolute left-0 top-[108px] w-[70%] max-w-[330px] min-h-[230px] border border-border bg-paper p-5 rounded-[8px] shadow-[0_18px_50px_rgba(0,0,0,0.10)]">
               <PairFocusPanel pair={heroPair} />
             </div>
 
             <div className="absolute right-2 bottom-0 w-[72%] max-w-[340px] border border-border bg-paper p-4 rounded-[8px] shadow-[0_18px_50px_rgba(0,0,0,0.10)]">
               <div className="flex items-center justify-between gap-4">
-                <span className="text-[10px] font-mono uppercase tracking-[0.14em] text-muted">Sector mix</span>
-                <span className="text-[11px] font-mono text-ink tabular-nums">{sectors.length || '--'} groups</span>
+                <span className="text-[10px] font-mono uppercase tracking-[0.14em] text-muted">セクター構成</span>
+                <span className="text-[11px] font-mono text-ink tabular-nums">{sectors.length || '--'} セクター</span>
               </div>
               <div className="mt-4 grid grid-cols-2 gap-2">
                 {(sectors.length ? sectors.slice(0, 4) : [
-                  { name: 'Auto', color: ACCENTS.heatmap, stocks: [] },
-                  { name: 'Tech', color: ACCENTS.network, stocks: [] },
-                  { name: 'Bank', color: ACCENTS.macro, stocks: [] },
-                  { name: 'Retail', color: ACCENTS.ranking, stocks: [] },
+                  { name: '自動車', color: ACCENTS.heatmap, stocks: [] },
+                  { name: '電機', color: ACCENTS.network, stocks: [] },
+                  { name: '銀行', color: ACCENTS.macro, stocks: [] },
+                  { name: '小売', color: ACCENTS.ranking, stocks: [] },
                 ]).map(sector => (
                   <div key={sector.name} className="min-w-0 rounded-[6px] border border-border px-2 py-1.5">
                     <div className="flex items-center gap-1.5">
                       <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: sector.color }} />
                       <span className="min-w-0 flex-1 truncate text-[11px] font-mono text-ink">{sector.name}</span>
                     </div>
-                    <p className="mt-1 text-[10px] font-mono text-muted tabular-nums">{sector.stocks.length || '--'} stocks</p>
+                    <p className="mt-1 text-[10px] font-mono text-muted tabular-nums">{sector.stocks.length || '--'} 銘柄</p>
                   </div>
                 ))}
               </div>
@@ -435,23 +497,85 @@ export function HomeView({ onNavigate, sectors, correlation, health, period }: P
         </div>
       </section>
 
-      <section className="py-8 lg:py-10">
+      <section className="py-8 lg:py-10 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.72fr)]">
+        <InfoPanel title="相関係数の読み方">
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            {readingGuide.map(item => (
+              <div key={item.label} className="rounded-[8px] border border-border bg-bg px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
+                  <span className="text-[12px] font-mono font-semibold text-ink">{item.label}</span>
+                </div>
+                <p className="mt-2 text-[12px] leading-relaxed text-muted">{item.text}</p>
+              </div>
+            ))}
+          </div>
+          <p className="mt-4 text-[12px] leading-relaxed text-muted">
+            相関は因果関係ではありません。最初の発見には便利ですが、実際の価格推移、出来高、ニュース、決算などと合わせて確認してください。
+          </p>
+        </InfoPanel>
+
+        <InfoPanel title="今のデータ要約">
+          <div className="mt-4 grid gap-3">
+            <div className="flex items-center justify-between gap-4 border-b border-border pb-3">
+              <span className="text-[12px] text-muted">銘柄ペア数</span>
+              <span className="text-[18px] font-semibold text-ink tabular-nums">{pairCount || '-'}</span>
+            </div>
+            <div className="flex items-center justify-between gap-4 border-b border-border pb-3">
+              <span className="text-[12px] text-muted">最大相関ペア</span>
+              <span className="text-[13px] font-mono text-ink truncate">{heroPair ? `${heroPair.labelA} / ${heroPair.labelB}` : '-'}</span>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-[12px] text-muted">相関係数</span>
+              <span className="text-[18px] font-semibold tabular-nums" style={{ color: heroPair && heroPair.corr < 0 ? '#ff4f5e' : ACCENTS.ranking }}>
+                {heroPair ? formatCorr(heroPair.corr) : '-'}
+              </span>
+            </div>
+          </div>
+        </InfoPanel>
+      </section>
+
+      <section className="pb-8 lg:pb-10">
+        <div className="flex items-end justify-between gap-5 flex-wrap">
+          <div>
+            <p className="text-[11px] font-mono uppercase tracking-[0.14em] text-muted">Workflow</p>
+            <h2 className="mt-2 text-[28px] font-semibold tracking-[-0.5px] text-ink">おすすめの分析順</h2>
+          </div>
+          <p className="max-w-xl text-[13px] leading-6 text-muted">
+            相関の全体像から入り、関係性、候補抽出、価格確認の順に進むと迷いにくくなります。
+          </p>
+        </div>
+
+        <div className="mt-6 grid gap-3 md:grid-cols-4">
+          {workflow.map(([step, title, text]) => (
+            <div key={step} className="rounded-[8px] border border-border bg-paper p-4">
+              <span className="h-7 w-7 rounded-[7px] bg-ink text-paper text-[12px] font-mono flex items-center justify-center">{step}</span>
+              <h3 className="mt-4 text-[14px] font-semibold text-ink">{title}</h3>
+              <p className="mt-2 text-[12px] leading-relaxed text-muted">{text}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="pb-8 lg:pb-10">
         <div className="flex items-end justify-between gap-5 flex-wrap">
           <div>
             <p className="text-[11px] font-mono uppercase tracking-[0.14em] text-muted">Views</p>
             <h2 className="mt-2 text-[28px] font-semibold tracking-[-0.5px] text-ink">分析タブの使い分け</h2>
           </div>
           <p className="max-w-xl text-[13px] leading-6 text-muted">
-            ざっくり俯瞰したい時、関係性を追いたい時、個別銘柄を深掘りしたい時で見る場所を切り替えられます。
+            それぞれのタブは役割が違います。見たい粒度に合わせて切り替えてください。
           </p>
         </div>
 
         <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           <FeatureCard
             view="heatmap"
-            kicker="01 / Sector Texture"
+            index="01 / Heatmap"
             title="ヒートマップ"
-            desc="セクターごとに銘柄間の相関を色で表示します。まとまって動く銘柄群や、同じ業種内でズレている銘柄を見つける入口です。"
+            desc="セクターごとに銘柄間の相関を色で表示します。緑は同じ方向、赤は逆方向、薄い色は関係が弱い組み合わせです。"
+            insight="同じ業種の中でまとまって動く銘柄群、または同業なのに動きが違う銘柄を見つけられます。"
+            useCase="まず市場全体を眺めたい時、セクター内の偏りを確認したい時。"
             accent={ACCENTS.heatmap}
             onNavigate={onNavigate}
             delay={0}
@@ -467,9 +591,11 @@ export function HomeView({ onNavigate, sectors, correlation, health, period }: P
 
           <FeatureCard
             view="network"
-            kicker="02 / Relationship Graph"
+            index="02 / Network"
             title="ネットワーク"
-            desc="相関が強い銘柄同士を線で結びます。中心になっている銘柄、孤立している銘柄、セクターをまたぐ連動を直感的に追えます。"
+            desc="相関が強い銘柄同士を線で結びます。線が多い銘柄ほど、他の銘柄と連動しやすい状態です。"
+            insight="中心にいる銘柄、孤立している銘柄、セクターをまたいだ連動を視覚的に追えます。"
+            useCase="銘柄同士のつながりを直感的に見たい時、テーマ株のまとまりを探したい時。"
             accent={ACCENTS.network}
             onNavigate={onNavigate}
             delay={70}
@@ -483,9 +609,11 @@ export function HomeView({ onNavigate, sectors, correlation, health, period }: P
 
           <FeatureCard
             view="macro"
-            kicker="03 / Macro Link"
+            index="03 / Macro"
             title="マクロ"
-            desc="為替、指数、金利、商品などの外部要因とセクター・銘柄の連動を見ます。市場全体の風向きを確認するためのタブです。"
+            desc="為替、指数、金利、商品などの外部要因と、銘柄・セクターの連動を確認します。"
+            insight="市場全体の風向きに対して、どのセクターや銘柄が反応しやすいかを見られます。"
+            useCase="円安・金利・米国株・商品価格などの影響を整理したい時。"
             accent={ACCENTS.macro}
             onNavigate={onNavigate}
             delay={140}
@@ -495,9 +623,11 @@ export function HomeView({ onNavigate, sectors, correlation, health, period }: P
 
           <FeatureCard
             view="ranking"
-            kicker="04 / Pair Ranking"
+            index="04 / Ranking"
             title="ランキング"
-            desc="相関が高い組み合わせ、低い組み合わせを順位で並べます。分散候補や同時に動きやすいペアを素早く拾えます。"
+            desc="相関が高いペア、低いペアを順位で並べます。数字で候補を絞り込むためのタブです。"
+            insight="同じように動くペア、逆に動きやすいペアを短時間で拾えます。"
+            useCase="分散候補、比較候補、ペアトレード候補を探したい時。"
             accent={ACCENTS.ranking}
             onNavigate={onNavigate}
             delay={210}
@@ -507,9 +637,11 @@ export function HomeView({ onNavigate, sectors, correlation, health, period }: P
 
           <FeatureCard
             view="chart"
-            kicker="05 / Price Compare"
+            index="05 / Chart"
             title="チャート"
-            desc="個別銘柄やセクター指数を並べて、価格推移とリターンを比較します。ヒートマップやランキングから掘り下げる先です。"
+            desc="個別銘柄やセクター指数を並べて、価格推移とリターンを比較します。"
+            insight="相関が高く見える理由が、同時期の上昇なのか、長期トレンドなのか、急落局面なのかを確認できます。"
+            useCase="ヒートマップやランキングで見つけたペアを最後に検証したい時。"
             accent={ACCENTS.chart}
             onNavigate={onNavigate}
             delay={280}
