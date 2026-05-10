@@ -66,10 +66,10 @@ export function DataSummaryBar({ view, period, sectors, correlation, health }: P
         <span className="font-mono tabular-nums">目安 <b className="text-ink">{SESSION_ESTIMATE[period]}</b> 営業日</span>
         <span>対象 <b className="text-ink">{visibleStocks.length}</b> 銘柄 / <b className="text-ink">{sectors.length}</b> セクター</span>
         <span>更新 <b className="text-ink">{updatedAt}</b></span>
-        <span title="相関が未算出、またはほぼ0として扱われているペアです">
+        <span title="相関が未計算、またはほぼ0として扱われているペアです">
           0.00扱い <b className="text-ink">{zeroPairs}</b> ペア
         </span>
-        <span className="ml-auto min-w-0 truncate" title={method}>算出: {method}</span>
+        <span className="ml-auto min-w-0 truncate" title={method}>計算: {method}</span>
       </div>
     </div>
   )

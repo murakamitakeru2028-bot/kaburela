@@ -120,7 +120,7 @@ function AppInner() {
 
   function renderMain() {
     if (currentView === 'home') {
-      return <HomeView onNavigate={handleViewChange} sectors={sectors} correlation={correlation} />
+      return <HomeView onNavigate={handleViewChange} sectors={sectors} correlation={correlation} health={health} period={period} />
     }
     if (isLoading) return <LoadingView />
     if (error) return <ErrorView message={error} />
