@@ -1,39 +1,25 @@
-import { useState, useRef, useEffect } from 'react'
-import type { HeatmapStock } from '../../data/mockCorrelation'
+import { useEffect, useRef, useState } from 'react'
+import { useTheme } from '../../lib/ThemeContext'
+import { corrToFill, corrToTextFill } from '../../lib/colorUtils'
+import type { StockInfo } from '../../types/stock'
 
 interface HeatmapProps {
-  stocks: HeatmapStock[]
+  stocks: StockInfo[]
   matrix: number[][]
+  onStockSelect?: (stock: StockInfo) => void
 }
 
-const LABEL_W = 84  /* 行ラベル幅 */
-const LABEL_H = 72  /* 列ラベル高さ（回転テキスト用） */
+const GAP = 4
+const CELL_R = 7
+const LABEL_W = 80
+const COL_LABEL_H = 32
 
-function lerp(a: number, b: number, t: number) {
-  return Math.round(a + (b - a) * Math.max(0, Math.min(1, t)))
-}
-
-/* 相関係数 → セル背景色 */
-function corrToFill(corr: number): string {
-  const base = [251, 251, 249] as const
-  if (corr >= 0) {
-    return `rgb(${lerp(base[0], 22, corr)},${lerp(base[1], 163, corr)},${lerp(base[2], 74, corr)})`
-  }
-  const t = -corr
-  return `rgb(${lerp(base[0], 220, t)},${lerp(base[1], 38, t)},${lerp(base[2], 38, t)})`
-}
-
-/* セル内テキスト色（背景の明暗に応じて白 or 黒） */
-function corrToTextFill(corr: number): string {
-  return Math.abs(corr) > 0.52 ? 'rgba(255,255,255,0.92)' : 'rgba(29,29,31,0.72)'
-}
-
-export function Heatmap({ stocks, matrix }: HeatmapProps) {
+export function Heatmap({ stocks, matrix, onStockSelect }: HeatmapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [containerW, setContainerW] = useState(640)
   const [hovered, setHovered] = useState<{ row: number; col: number } | null>(null)
+  const { isDark } = useTheme()
 
-  /* コンテナ幅の変化を監視してセルサイズを動的計算 */
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
@@ -44,173 +30,202 @@ export function Heatmap({ stocks, matrix }: HeatmapProps) {
   }, [])
 
   const N = stocks.length
-  const CELL = Math.max(38, Math.min(72, Math.floor((containerW - LABEL_W - 64) / N)))
-  const svgW = LABEL_W + N * CELL
-  const svgH = LABEL_H + N * CELL
+  const CELL = Math.max(36, Math.min(68, Math.floor((containerW - LABEL_W - 48 - GAP * (N - 1)) / N)))
+  const svgW = LABEL_W + N * CELL + GAP * (N - 1)
+  const svgH = N * CELL + GAP * (N - 1)
+  const center = (N - 1) / 2
+
+  function cellDelay(row: number, col: number): number {
+    const dist = Math.abs(row - center) + Math.abs(col - center)
+    return Math.round(dist * 30)
+  }
 
   const hoveredCorr = hovered ? matrix[hovered.row][hovered.col] : null
 
   return (
-    <div ref={containerRef} className="flex flex-col items-center gap-5 w-full px-8 py-8">
-
-      {/* SVG ヒートマップ本体 */}
-      <svg width={svgW} height={svgH} style={{ overflow: 'visible' }}>
-
-        {/* 列ラベル（-45°回転） */}
-        {stocks.map((s, col) => (
-          <text
-            key={col}
-            transform={`translate(${LABEL_W + col * CELL + CELL / 2},${LABEL_H - 6}) rotate(-45)`}
-            textAnchor="end"
-            fontSize={11}
-            fill="#6e6e73"
-            fontFamily="DM Sans, sans-serif"
+    <div ref={containerRef} className="flex flex-col items-start gap-0 w-full px-3 py-3">
+      {containerW > 0 && (
+        <>
+          <div
+            style={{
+              marginLeft: LABEL_W,
+              height: COL_LABEL_H,
+              display: 'flex',
+              alignItems: 'flex-end',
+              gap: GAP,
+              paddingBottom: 6,
+            }}
           >
-            {s.label}
-          </text>
-        ))}
-
-        {/* 行ラベル */}
-        {stocks.map((s, row) => (
-          <text
-            key={row}
-            x={LABEL_W - 10}
-            y={LABEL_H + row * CELL + CELL / 2}
-            textAnchor="end"
-            dominantBaseline="middle"
-            fontSize={11}
-            fill={hovered?.row === row ? '#1d1d1f' : '#6e6e73'}
-            fontFamily="DM Sans, sans-serif"
-            style={{ transition: 'fill 0.1s' }}
-          >
-            {s.label}
-          </text>
-        ))}
-
-        {/* 列ラベル（ホバー時に強調） */}
-        {stocks.map((s, col) => (
-          <text
-            key={`col-hi-${col}`}
-            transform={`translate(${LABEL_W + col * CELL + CELL / 2},${LABEL_H - 6}) rotate(-45)`}
-            textAnchor="end"
-            fontSize={11}
-            fill={hovered?.col === col ? '#1d1d1f' : 'transparent'}
-            fontFamily="DM Sans, sans-serif"
-          >
-            {s.label}
-          </text>
-        ))}
-
-        {/* セル */}
-        {matrix.map((rowData, row) =>
-          rowData.map((corr, col) => (
-            <g key={`${row}-${col}`}>
-              <rect
-                x={LABEL_W + col * CELL}
-                y={LABEL_H + row * CELL}
-                width={CELL}
-                height={CELL}
-                fill={corrToFill(corr)}
-                onMouseEnter={() => setHovered({ row, col })}
+            {stocks.map((s, col) => (
+              <button
+                type="button"
+                key={col}
+                onClick={() => onStockSelect?.(s)}
+                onMouseEnter={() => setHovered({ row: col, col })}
                 onMouseLeave={() => setHovered(null)}
-                style={{ cursor: 'default' }}
-              />
-              {/* セル内の相関値（セルが十分大きい場合のみ表示） */}
-              {CELL >= 48 && (
-                <text
-                  x={LABEL_W + col * CELL + CELL / 2}
-                  y={LABEL_H + row * CELL + CELL / 2}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  fontSize={Math.min(11, CELL * 0.2)}
-                  fill={corrToTextFill(corr)}
-                  fontFamily="DM Mono, monospace"
-                  pointerEvents="none"
-                >
-                  {corr.toFixed(2)}
-                </text>
-              )}
-            </g>
-          ))
-        )}
+                style={{
+                  width: CELL,
+                  flexShrink: 0,
+                  textAlign: 'center',
+                  fontSize: 10,
+                  fontFamily: 'DM Sans, sans-serif',
+                  background: 'transparent',
+                  border: 0,
+                  padding: 0,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  color: hovered?.col === col ? 'var(--color-ink)' : 'var(--color-muted)',
+                  fontWeight: hovered?.col === col ? 600 : 400,
+                  transition: 'color 0.15s',
+                  cursor: onStockSelect ? 'pointer' : 'default',
+                }}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
 
-        {/* グリッド外枠 */}
-        <rect
-          x={LABEL_W}
-          y={LABEL_H}
-          width={N * CELL}
-          height={N * CELL}
-          fill="none"
-          stroke="#d2d2d7"
-          strokeWidth={1}
-          pointerEvents="none"
-        />
+          <svg width={svgW} height={svgH} style={{ overflow: 'visible' }}>
+            {stocks.map((s, row) => (
+              <text
+                key={row}
+                x={LABEL_W - 10}
+                y={row * (CELL + GAP) + CELL / 2}
+                textAnchor="end"
+                dominantBaseline="middle"
+                fontSize={11}
+                onClick={() => onStockSelect?.(s)}
+                onMouseEnter={() => setHovered({ row, col: row })}
+                onMouseLeave={() => setHovered(null)}
+                style={{
+                  fill: hovered?.row === row ? 'var(--color-ink)' : 'var(--color-muted)',
+                  transition: 'fill 0.15s',
+                  fontWeight: hovered?.row === row ? 600 : 400,
+                  cursor: onStockSelect ? 'pointer' : 'default',
+                }}
+                fontFamily="DM Sans, sans-serif"
+              >
+                {s.label}
+              </text>
+            ))}
 
-        {/* ホバーハイライト（列・行のクロスライン + セル枠） */}
-        {hovered && (
-          <>
-            <rect
-              x={LABEL_W + hovered.col * CELL}
-              y={LABEL_H}
-              width={CELL}
-              height={N * CELL}
-              fill="rgba(0,0,0,0.05)"
-              pointerEvents="none"
-            />
-            <rect
-              x={LABEL_W}
-              y={LABEL_H + hovered.row * CELL}
-              width={N * CELL}
-              height={CELL}
-              fill="rgba(0,0,0,0.05)"
-              pointerEvents="none"
-            />
-            <rect
-              x={LABEL_W + hovered.col * CELL}
-              y={LABEL_H + hovered.row * CELL}
-              width={CELL}
-              height={CELL}
-              fill="none"
-              stroke="rgba(0,0,0,0.3)"
-              strokeWidth={1.5}
-              pointerEvents="none"
-            />
-          </>
-        )}
-      </svg>
+            {matrix.map((rowData, row) =>
+              rowData.map((corr, col) => {
+                const cx = LABEL_W + col * (CELL + GAP)
+                const cy = row * (CELL + GAP)
+                const isHov = hovered?.row === row && hovered?.col === col
+                const isRowOrCol = hovered ? hovered.row === row || hovered.col === col : false
+                return (
+                  <g
+                    key={`${row}-${col}`}
+                    style={{
+                      animation: 'cell-in 0.28s ease both',
+                      animationDelay: `${cellDelay(row, col)}ms`,
+                    }}
+                  >
+                    <rect
+                      x={cx}
+                      y={cy}
+                      width={CELL}
+                      height={CELL}
+                      rx={CELL_R}
+                      fill={row === col ? (isDark ? '#2c2c2e' : '#e8e8e8') : corrToFill(corr, isDark)}
+                      onMouseEnter={() => { if (row !== col) setHovered({ row, col }) }}
+                      onMouseLeave={() => setHovered(null)}
+                      style={{
+                        transformBox: 'fill-box',
+                        transformOrigin: 'center',
+                        transform: isHov ? 'scale(1.1)' : 'scale(1)',
+                        opacity: hovered && !isRowOrCol ? 0.55 : (row === col ? 0.5 : 1),
+                        transition: 'transform 0.15s ease, opacity 0.15s ease',
+                        cursor: 'default',
+                        filter: isHov ? 'drop-shadow(0 4px 8px rgba(0,0,0,0.18))' : 'none',
+                      } as React.CSSProperties}
+                    />
+                    {row === col ? (
+                      <line
+                        x1={cx + 8}
+                        y1={cy + 8}
+                        x2={cx + CELL - 8}
+                        y2={cy + CELL - 8}
+                        stroke="var(--color-border)"
+                        strokeWidth={1.5}
+                        strokeLinecap="round"
+                        pointerEvents="none"
+                      />
+                    ) : CELL >= 44 && (
+                      <text
+                        x={cx + CELL / 2}
+                        y={cy + CELL / 2}
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                        fontSize={Math.min(11, CELL * 0.19)}
+                        fill={corrToTextFill(corr, isDark)}
+                        fontFamily="DM Mono, monospace"
+                        pointerEvents="none"
+                        style={{
+                          opacity: hovered && !isRowOrCol ? 0.45 : 1,
+                          fontWeight: isHov ? 700 : 400,
+                          transition: 'opacity 0.15s ease',
+                        }}
+                      >
+                        {corr.toFixed(2)}
+                      </text>
+                    )}
+                  </g>
+                )
+              })
+            )}
+          </svg>
+        </>
+      )}
 
-      {/* ホバー情報バー */}
-      <div className="h-5 flex items-center">
-        {hovered ? (
-          <p className="text-[12px] font-mono">
-            <span className="font-medium text-ink">{stocks[hovered.row].name}</span>
-            <span className="text-muted mx-2">×</span>
-            <span className="font-medium text-ink">{stocks[hovered.col].name}</span>
-            <span className="text-muted mx-3">→</span>
+      <div
+        className="w-full max-w-md h-9 flex items-center justify-center rounded-xl px-4 mt-5"
+        style={{
+          background: hovered
+            ? (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)')
+            : 'transparent',
+          transition: 'background 0.2s',
+          alignSelf: 'center',
+        }}
+      >
+        {hovered && hovered.row !== hovered.col ? (
+          <p className="text-[12px] font-mono flex items-center gap-2">
+            <span className="font-semibold text-ink">{stocks[hovered.row].name}</span>
+            <span className="text-muted text-[10px]">×</span>
+            <span className="font-semibold text-ink">{stocks[hovered.col].name}</span>
+            <span className="text-border mx-1">|</span>
             <span
-              className="font-semibold"
-              style={{ color: (hoveredCorr ?? 0) >= 0 ? '#16a34a' : '#dc2626' }}
+              className="font-bold text-[14px] tabular-nums"
+              style={{ color: (hoveredCorr ?? 0) >= 0 ? 'var(--color-pos)' : 'var(--color-neg)' }}
             >
               {(hoveredCorr ?? 0) >= 0 ? '+' : ''}{hoveredCorr?.toFixed(2)}
             </span>
           </p>
         ) : (
-          <p className="text-[12px] text-muted font-mono">
-            セルにカーソルを合わせると詳細が表示されます
+          <p className="text-[12px] text-muted font-mono" style={{ alignSelf: 'center' }}>
+            セルをホバーして詳細を確認
           </p>
         )}
       </div>
 
-      {/* カラースケール */}
-      <div className="flex items-center gap-3" style={{ width: Math.min(260, svgW) }}>
-        <span className="text-[11px] font-mono shrink-0" style={{ color: '#dc2626' }}>−1.00</span>
-        <div
-          className="flex-1 h-[6px] rounded-full"
-          style={{ background: 'linear-gradient(to right, #dc2626 0%, #fbfbf9 50%, #16a34a 100%)' }}
-        />
-        <span className="text-[11px] font-mono shrink-0" style={{ color: '#16a34a' }}>+1.00</span>
+      <div
+        className="flex items-center gap-3 mt-2"
+        style={{ width: Math.min(280, svgW), alignSelf: 'center' }}
+      >
+        <span className="text-[11px] font-mono tabular-nums shrink-0" style={{ color: 'var(--color-neg)' }}>-1.00</span>
+        <div className="relative flex-1 h-[6px] rounded-full overflow-hidden">
+          <div
+            className="absolute inset-0 rounded-full"
+            style={{
+              background: `linear-gradient(to right, var(--color-neg) 0%, ${isDark ? '#2c2c2e' : '#f0f0f0'} 50%, var(--color-pos) 100%)`,
+            }}
+          />
+        </div>
+        <span className="text-[11px] font-mono tabular-nums shrink-0" style={{ color: 'var(--color-pos)' }}>+1.00</span>
       </div>
-
     </div>
   )
 }

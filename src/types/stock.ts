@@ -1,5 +1,5 @@
-export interface Stock {
+export interface StockInfo {
   code: string
   name: string
-  sector: string
+  label: string
 }

@@ -17,6 +17,18 @@
   --radius-card: 16px;
 }
 
+/* ダークモード — data-theme="dark" を <html> に付与すると全トークンが切り替わる */
+[data-theme="dark"] {
+  --color-ink:    #f5f5f7;
+  --color-bg:     #1c1c1e;
+  --color-paper:  #2c2c2e;
+  --color-border: #3a3a3c;
+  --color-muted:  #98989d;
+  --color-subtle: #3a3a3c;
+  --color-pos:    #34d058;
+  --color-neg:    #ff453a;
+}
+
 @layer base {
   html {
     font-family: var(--font-sans);
@@ -25,4 +37,39 @@
     -webkit-font-smoothing: antialiased;
   }
   body { margin: 0; }
+
+  /* スクロールバーのダークモード対応 */
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: var(--color-muted); }
+  * { scrollbar-color: var(--color-border) transparent; }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-in-left {
+  from { opacity: 0; transform: translateX(-16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes bar-grow {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+@keyframes cell-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes modal-in {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
 }

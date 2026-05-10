@@ -12,10 +12,16 @@ dist
 dist-ssr
 *.local
 
-# 環境変数（APIキーなど — 絶対にコミットしない）
+# Environment variables and API keys
 .env
 .env.local
 .env.*.local
+
+# Python backend artifacts
+__pycache__/
+*.py[cod]
+backend/.venv/
+backend/kaburela.db
 
 # Editor directories and files
 .vscode/*

@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { SECTORS, DEFAULT_FILTER, type FilterState } from '../../types/filter'
 import { cn } from '../../lib/cn'
 
@@ -15,7 +15,6 @@ export function FilterPanel({ filter, onChange, onClose }: FilterPanelProps) {
     function handleClickOutside(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) onClose()
     }
-    /* mousedown で閉じると開くボタン自身のクリックと競合するため mouseup を使う */
     document.addEventListener('mouseup', handleClickOutside)
     return () => document.removeEventListener('mouseup', handleClickOutside)
   }, [onClose])
@@ -36,28 +35,25 @@ export function FilterPanel({ filter, onChange, onClose }: FilterPanelProps) {
       ref={ref}
       className="absolute top-[calc(100%+8px)] right-0 w-72 bg-paper rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.12),0_0_0_1px_rgba(0,0,0,0.06)] z-50 overflow-hidden"
     >
-      {/* ヘッダー */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-[#f0f0f5]">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <span className="text-[13px] font-semibold text-ink">フィルター</span>
         <button
           onClick={() => onChange({ ...DEFAULT_FILTER })}
           disabled={isDefault}
-          className="text-[12px] text-[#0071e3] disabled:text-muted disabled:cursor-not-allowed transition-colors"
+          className="text-[12px] disabled:text-muted disabled:cursor-not-allowed transition-colors cursor-pointer"
+          style={{ color: isDefault ? undefined : '#0071e3' }}
         >
           リセット
         </button>
       </div>
 
       <div className="p-4 flex flex-col gap-5">
-        {/* 相関係数の下限 */}
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <span className="text-[12px] font-medium text-ink">相関係数の下限</span>
             <span
-              className={cn(
-                'text-[12px] font-mono font-semibold tabular-nums',
-                filter.minCorr >= 0 ? 'text-[#16a34a]' : 'text-[#dc2626]',
-              )}
+              className="text-[12px] font-mono font-semibold tabular-nums"
+              style={{ color: filter.minCorr >= 0 ? 'var(--color-pos)' : 'var(--color-neg)' }}
             >
               {filter.minCorr >= 0 ? '+' : ''}{filter.minCorr.toFixed(2)}
             </span>
@@ -89,7 +85,6 @@ export function FilterPanel({ filter, onChange, onClose }: FilterPanelProps) {
           </div>
         </div>
 
-        {/* セクター */}
         <div className="flex flex-col gap-2.5">
           <div className="flex items-center justify-between">
             <span className="text-[12px] font-medium text-ink">セクター</span>
@@ -101,7 +96,8 @@ export function FilterPanel({ filter, onChange, onClose }: FilterPanelProps) {
                     filter.selectedSectors.length === SECTORS.length ? [] : [...SECTORS],
                 })
               }
-              className="text-[11px] text-[#0071e3]"
+              className="text-[11px] cursor-pointer"
+              style={{ color: '#0071e3' }}
             >
               {filter.selectedSectors.length === SECTORS.length ? 'すべて解除' : 'すべて選択'}
             </button>
@@ -110,10 +106,7 @@ export function FilterPanel({ filter, onChange, onClose }: FilterPanelProps) {
             {SECTORS.map((sector) => {
               const checked = filter.selectedSectors.includes(sector)
               return (
-                <label
-                  key={sector}
-                  className="flex items-center gap-2 cursor-pointer group"
-                >
+                <label key={sector} className="flex items-center gap-2 cursor-pointer group">
                   <div
                     onClick={() => toggleSector(sector)}
                     className={cn(
