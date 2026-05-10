@@ -2,6 +2,11 @@ name: Update static data
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - master
+    paths:
+      - backend/config.py
   schedule:
     # 02:00 JST every Sunday.
     - cron: "0 17 * * 6"

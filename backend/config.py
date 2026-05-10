@@ -139,6 +139,18 @@ SECTOR_DEFINITIONS: list[SectorDef] = [
             {"ticker": "9532.T", "code": "9532", "name": "大阪ガス", "label": "大阪ガス"},
         ],
     },
+    {
+        "name": "建設業",
+        "color": "#9333ea",
+        "stocks": [
+            {"ticker": "1801.T", "code": "1801", "name": "大成建設", "label": "大成建設"},
+            {"ticker": "1802.T", "code": "1802", "name": "大林組", "label": "大林組"},
+            {"ticker": "1803.T", "code": "1803", "name": "清水建設", "label": "清水建設"},
+            {"ticker": "1812.T", "code": "1812", "name": "鹿島建設", "label": "鹿島"},
+            {"ticker": "1925.T", "code": "1925", "name": "大和ハウス工業", "label": "大和ハウス"},
+            {"ticker": "1928.T", "code": "1928", "name": "積水ハウス", "label": "積水ハウス"},
+        ],
+    },
 ]
 
 VALID_PERIODS = {"1M", "3M", "6M", "1Y", "3Y", "5Y"}

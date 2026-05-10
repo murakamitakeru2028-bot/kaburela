@@ -14,6 +14,7 @@ export const SECTORS = [
   '小売業',
   '不動産業',
   '電気・ガス業',
+  '建設業',
 ]
 
 export interface FilterState {
@@ -23,5 +24,5 @@ export interface FilterState {
 
 export const DEFAULT_FILTER: FilterState = {
   minCorr: 0,
-  selectedSectors: [...SECTORS],
+  selectedSectors: [],
 }
