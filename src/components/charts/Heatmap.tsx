@@ -43,7 +43,7 @@ export function Heatmap({ stocks, matrix, onStockSelect }: HeatmapProps) {
   const hoveredCorr = hovered ? matrix[hovered.row][hovered.col] : null
 
   return (
-    <div ref={containerRef} className="flex flex-col items-start gap-0 w-full px-3 py-3">
+    <div ref={containerRef} className="flex flex-col items-start gap-0 w-full overflow-x-auto px-2 py-3 sm:px-3">
       {containerW > 0 && (
         <>
           <div
@@ -192,7 +192,7 @@ export function Heatmap({ stocks, matrix, onStockSelect }: HeatmapProps) {
         }}
       >
         {hovered && hovered.row !== hovered.col ? (
-          <p className="text-[12px] font-mono flex items-center gap-2">
+          <p className="min-w-0 text-[12px] font-mono flex items-center gap-2">
             <span className="font-semibold text-ink">{stocks[hovered.row].name}</span>
             <span className="text-muted text-[10px]">×</span>
             <span className="font-semibold text-ink">{stocks[hovered.col].name}</span>

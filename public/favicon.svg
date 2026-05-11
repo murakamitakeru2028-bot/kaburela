@@ -1,14 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <!-- 背景 -->
   <rect width="32" height="32" rx="7" fill="#f5f5f7"/>
-  <!-- 3×3 グリッド（ライトモード配色） -->
-  <rect x="2"  y="2"  width="8" height="8" rx="1.5" fill="#1d1d1f"/>
-  <rect x="12" y="2"  width="8" height="8" rx="1.5" fill="#6e6e73"/>
-  <rect x="22" y="2"  width="8" height="8" rx="1.5" fill="#c7c7cc"/>
-  <rect x="2"  y="12" width="8" height="8" rx="1.5" fill="#6e6e73"/>
-  <rect x="12" y="12" width="8" height="8" rx="1.5" fill="#1d1d1f"/>
-  <rect x="22" y="12" width="8" height="8" rx="1.5" fill="#aeaeb2"/>
-  <rect x="2"  y="22" width="8" height="8" rx="1.5" fill="#c7c7cc"/>
-  <rect x="12" y="22" width="8" height="8" rx="1.5" fill="#aeaeb2"/>
-  <rect x="22" y="22" width="8" height="8" rx="1.5" fill="#1d1d1f"/>
+  <rect x="7.5"  y="7.5"  width="4.8" height="4.8" rx="1" fill="#1d1d1f"/>
+  <rect x="13.6" y="7.5"  width="4.8" height="4.8" rx="1" fill="#6e6e73"/>
+  <rect x="19.7" y="7.5"  width="4.8" height="4.8" rx="1" fill="#c7c7cc"/>
+  <rect x="7.5"  y="13.6" width="4.8" height="4.8" rx="1" fill="#6e6e73"/>
+  <rect x="13.6" y="13.6" width="4.8" height="4.8" rx="1" fill="#1d1d1f"/>
+  <rect x="19.7" y="13.6" width="4.8" height="4.8" rx="1" fill="#aeaeb2"/>
+  <rect x="7.5"  y="19.7" width="4.8" height="4.8" rx="1" fill="#c7c7cc"/>
+  <rect x="13.6" y="19.7" width="4.8" height="4.8" rx="1" fill="#aeaeb2"/>
+  <rect x="19.7" y="19.7" width="4.8" height="4.8" rx="1" fill="#1d1d1f"/>
 </svg>

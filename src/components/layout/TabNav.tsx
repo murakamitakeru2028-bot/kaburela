@@ -9,7 +9,7 @@ interface SegmentedControlProps {
 
 export function SegmentedControl({ current, onChange, onHover }: SegmentedControlProps) {
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex items-center gap-0.5 sm:gap-1">
       {TABS.map((tab) => (
         <button
           key={tab.id}
@@ -17,7 +17,7 @@ export function SegmentedControl({ current, onChange, onHover }: SegmentedContro
           onMouseEnter={() => onHover?.(TAB_DESCS[tab.id])}
           onMouseLeave={() => onHover?.(null)}
           className={cn(
-            'h-[28px] px-3 text-[13px] font-semibold transition-colors cursor-pointer select-none whitespace-nowrap',
+            'h-9 sm:h-[28px] px-2.5 sm:px-3 text-[12px] sm:text-[13px] font-semibold transition-colors cursor-pointer select-none whitespace-nowrap',
             current === tab.id ? 'text-ink' : 'text-muted hover:text-ink',
           )}
         >

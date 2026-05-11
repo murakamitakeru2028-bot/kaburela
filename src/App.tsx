@@ -27,38 +27,51 @@ interface MacroState {
   data: MacroResponse | null
 }
 
+type PeriodByView = Partial<Record<View, Period>>
+type MarketCache = Partial<Record<Period, MarketState>>
+type MacroCache = Partial<Record<Period, MacroState>>
+
 const EMPTY_SECTORS: SectorData[] = []
 const VIEW_LABELS = Object.fromEntries(TABS.map(tab => [tab.id, tab.label])) as Record<View, string>
 
 function AppInner() {
   const [currentView, setCurrentView] = useState<View>('home')
-  const [period, setPeriod] = useState<Period>('6M')
-  const [filter, setFilter] = useState<FilterState>(DEFAULT_FILTER)
+  const [periodByView, setPeriodByView] = useState<PeriodByView>({ home: '6M' })
+  const [filter] = useState<FilterState>(DEFAULT_FILTER)
   const [chartInitialStock, setChartInitialStock] = useState<StockInfo | null>(null)
   const [chartReturnView, setChartReturnView] = useState<View | null>(null)
-  const [market, setMarket] = useState<MarketState>({
-    period: '6M',
-    sectors: [],
-    correlation: null,
-    error: null,
-  })
-  const [macro, setMacro] = useState<MacroState | null>(null)
+  const [marketCache, setMarketCache] = useState<MarketCache>({})
+  const [macroCache, setMacroCache] = useState<MacroCache>({})
   const [health, setHealth] = useState<HealthResponse | null>(null)
+  const period = periodByView[currentView] ?? '6M'
+  const cachedMarket = marketCache[period]
+  const cachedMacro = macroCache[period]
+
+  function setCurrentPeriod(nextPeriod: Period) {
+    setPeriodByView(prev => ({ ...prev, [currentView]: nextPeriod }))
+  }
 
   useEffect(() => {
+    if (cachedMarket) return
     let cancelled = false
     Promise.all([fetchSectors(period), fetchCorrelation(period)])
       .then(([sectorData, corrData]) => {
         if (cancelled) return
-        setMarket({ period, sectors: sectorData, correlation: corrData, error: null })
+        setMarketCache(prev => ({
+          ...prev,
+          [period]: { period, sectors: sectorData, correlation: corrData, error: null },
+        }))
       })
       .catch((err: Error) => {
         if (cancelled) return
-        setMarket({ period, sectors: [], correlation: null, error: err.message })
+        setMarketCache(prev => ({
+          ...prev,
+          [period]: { period, sectors: [], correlation: null, error: err.message },
+        }))
       })
 
     return () => { cancelled = true }
-  }, [period])
+  }, [period, cachedMarket])
 
   useEffect(() => {
     let cancelled = false
@@ -70,25 +83,31 @@ function AppInner() {
         if (!cancelled) setHealth(null)
       })
     return () => { cancelled = true }
-  }, [period])
+  }, [])
 
   useEffect(() => {
     if (currentView !== 'macro') return
+    if (cachedMacro) return
     let cancelled = false
     fetchMacro(period)
       .then(data => {
-        if (!cancelled) setMacro({ period, data })
+        if (!cancelled) {
+          setMacroCache(prev => ({ ...prev, [period]: { period, data } }))
+        }
       })
       .catch(() => {
-        if (!cancelled) setMacro({ period, data: null })
+        if (!cancelled) {
+          setMacroCache(prev => ({ ...prev, [period]: { period, data: null } }))
+        }
       })
     return () => { cancelled = true }
-  }, [period, currentView])
+  }, [period, currentView, cachedMacro])
 
-  const isLoading = market.period !== period
-  const sectors = market.period === period ? market.sectors : EMPTY_SECTORS
-  const correlation = market.period === period ? market.correlation : null
-  const error = market.period === period ? market.error : null
+  const market = cachedMarket
+  const isLoading = !market
+  const sectors = market?.sectors ?? EMPTY_SECTORS
+  const correlation = market?.correlation ?? null
+  const error = market?.error ?? null
 
   const sectorNames = useMemo(() => sectors.map(s => s.name), [sectors])
   const effectiveFilter = useMemo<FilterState>(() => {
@@ -166,7 +185,7 @@ function AppInner() {
         <ChartView
           key={chartInitialStock?.code ?? 'none'}
           period={period}
-          onPeriodChange={setPeriod}
+          onPeriodChange={setCurrentPeriod}
           initialStock={chartInitialStock}
           sectors={sectors}
           correlation={correlation}
@@ -176,7 +195,8 @@ function AppInner() {
       )
     }
     if (currentView === 'macro') {
-      if (macro?.period !== period || !macro.data) {
+      const macro = cachedMacro
+      if (!macro?.data) {
         return (
           <div className="h-full flex items-center justify-center">
             <p className="text-[13px] text-muted">マクロデータを読み込み中...</p>
@@ -191,6 +211,7 @@ function AppInner() {
   function handleSearchSelect(stock: StockInfo) {
     setChartInitialStock(stock)
     setChartReturnView(currentView === 'chart' ? chartReturnView : currentView)
+    setPeriodByView(prev => ({ ...prev, chart: prev[currentView] ?? '6M' }))
     setCurrentView('chart')
   }
 
@@ -200,6 +221,7 @@ function AppInner() {
   }
 
   function handleViewChange(view: View) {
+    setPeriodByView(prev => (prev[view] ? prev : { ...prev, [view]: prev[currentView] ?? '6M' }))
     setCurrentView(view)
     if (view !== 'chart') setChartReturnView(null)
   }
@@ -207,24 +229,21 @@ function AppInner() {
   const isNetworkActive = currentView === 'network' && !isLoading && !error && filteredCorrelation !== null
 
   return (
-    <div className="h-screen flex flex-col bg-bg font-sans overflow-hidden">
-      <div className="h-8 shrink-0 relative z-40">
+    <div className="h-dvh min-h-[480px] flex flex-col bg-bg font-sans overflow-hidden">
+      <div className="h-11 sm:h-8 shrink-0 relative z-40">
         <Header
           currentView={currentView}
           onViewChange={handleViewChange}
-          period={period}
-          onPeriodChange={setPeriod}
-          filter={effectiveFilter}
-          onFilterChange={setFilter}
           onSearchSelect={handleSearchSelect}
         />
       </div>
-      <div className="flex flex-1 overflow-hidden px-[clamp(24px,8vw,72px)] sm:px-[96px] lg:px-[144px] xl:px-[192px] py-4">
-        <main className={`flex-1 flex flex-col ${isNetworkActive ? 'overflow-hidden' : 'overflow-auto'}`}>
-          {currentView !== 'home' && !isLoading && !error && (
+      <div className="flex flex-1 overflow-hidden px-3 py-3 sm:px-6 sm:py-4 md:px-10 lg:px-16 xl:px-24 2xl:px-32">
+        <main className={`min-w-0 flex-1 flex flex-col ${isNetworkActive ? 'overflow-hidden' : 'overflow-auto'}`}>
+          {currentView !== 'home' && !error && (
             <DataSummaryBar
               view={currentView}
               period={period}
+              onPeriodChange={currentView === 'chart' ? undefined : setCurrentPeriod}
               sectors={filteredSectors}
               correlation={correlation}
               health={health}

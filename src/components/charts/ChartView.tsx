@@ -487,7 +487,7 @@ function ChartDetails({ stocks, activeStock, data, activeCode, onActiveCodeChang
   )
 
   return (
-    <div className="pt-7 flex flex-col gap-6">
+    <div className="pt-5 sm:pt-7 flex flex-col gap-5 sm:gap-6">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <p className="text-[14px] font-semibold text-ink">詳細情報</p>
@@ -668,8 +668,8 @@ function SectorBrowsePanel({ sectors, selectedCodes, disabled, onSelect }: Secto
     >
       <div className="divide-y divide-border">
         {sectors.map(sec => (
-          <div key={sec.name} className="flex items-start gap-3 px-3 py-2.5">
-            <div className="flex items-center gap-1.5 w-24 shrink-0 pt-0.5">
+          <div key={sec.name} className="flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:items-start sm:gap-3">
+            <div className="flex min-w-0 items-center gap-1.5 sm:w-24 sm:shrink-0 sm:pt-0.5">
               <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: sec.color }} />
               <span className="text-[10px] text-muted font-mono truncate">{sec.name}</span>
             </div>
@@ -952,7 +952,7 @@ export function ChartView({ period, onPeriodChange, initialStock, sectors, corre
   }
 
   return (
-    <div className="px-5 py-5 flex flex-col gap-5 max-w-6xl mx-auto w-full">
+    <div className="px-1.5 py-3 sm:px-5 sm:py-5 flex flex-col gap-4 sm:gap-5 max-w-6xl mx-auto w-full">
       <section
         className="px-1 py-2"
         style={{ animation: 'fade-up 0.35s cubic-bezier(0.16, 1, 0.3, 1) both' }}
@@ -981,7 +981,7 @@ export function ChartView({ period, onPeriodChange, initialStock, sectors, corre
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
             <div className="relative" ref={dropdownRef}>
               <button
                 type="button"
@@ -991,7 +991,7 @@ export function ChartView({ period, onPeriodChange, initialStock, sectors, corre
                   if (searchResults.length) setDropdownOpen(true)
                 }}
                 disabled={isFull}
-                className="h-10 px-4 rounded-full bg-ink text-paper text-[13px] font-semibold flex items-center gap-2 shadow-[0_8px_22px_rgba(0,0,0,0.14)] disabled:opacity-45 disabled:cursor-default cursor-pointer"
+                className="h-10 px-3 sm:px-4 rounded-full bg-ink text-paper text-[13px] font-semibold flex items-center gap-2 shadow-[0_8px_22px_rgba(0,0,0,0.14)] disabled:opacity-45 disabled:cursor-default cursor-pointer"
               >
                 <svg width="14" height="14" viewBox="0 0 15 15" fill="none" aria-hidden>
                   <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" strokeWidth="1.5" />
@@ -1001,7 +1001,7 @@ export function ChartView({ period, onPeriodChange, initialStock, sectors, corre
               </button>
 
               {searchOpen && (
-                <div className="absolute right-0 top-[calc(100%+10px)] w-[360px] max-w-[calc(100vw-40px)] rounded-2xl border border-border bg-paper shadow-[0_18px_52px_rgba(0,0,0,0.18)] z-50 overflow-hidden">
+                <div className="fixed left-3 right-3 top-14 sm:absolute sm:left-auto sm:right-0 sm:top-[calc(100%+10px)] sm:w-[360px] sm:max-w-[calc(100vw-40px)] rounded-2xl border border-border bg-paper shadow-[0_18px_52px_rgba(0,0,0,0.18)] z-50 overflow-hidden">
                   <div className={`flex items-center gap-2 px-3 h-12 border-b transition-colors ${searchActive ? 'border-muted' : 'border-border'}`}>
                     {isSearching ? (
                       <div className="w-3 h-3 border border-border border-t-muted rounded-full animate-spin shrink-0" />
@@ -1060,7 +1060,7 @@ export function ChartView({ period, onPeriodChange, initialStock, sectors, corre
             {sectors && sectors.length > 0 && (
               <button
                 onClick={() => setSectorPanelOpen(v => !v)}
-                className="h-10 px-4 rounded-full bg-subtle text-[13px] font-semibold text-muted hover:text-ink transition-colors cursor-pointer shrink-0"
+                className="h-10 px-3 sm:px-4 rounded-full bg-subtle text-[13px] font-semibold text-muted hover:text-ink transition-colors cursor-pointer shrink-0"
               >
                 セクターから選択
               </button>
@@ -1162,7 +1162,7 @@ export function ChartView({ period, onPeriodChange, initialStock, sectors, corre
             <div className="px-1 pt-2 pb-3 flex items-start justify-between gap-4 flex-wrap">
               <div className="min-w-0">
                 <p className="text-[11px] text-muted font-mono tracking-[0.08em] uppercase">Performance</p>
-                <h3 className="mt-1 text-[22px] font-semibold text-ink tracking-[-0.3px] truncate">
+                <h3 className="mt-1 text-[18px] sm:text-[22px] font-semibold text-ink tracking-[-0.3px] truncate">
                   {loadedStocks.map(stock => stock.label).join(' / ')}
                 </h3>
               </div>
@@ -1171,9 +1171,9 @@ export function ChartView({ period, onPeriodChange, initialStock, sectors, corre
               </span>
             </div>
 
-            <div className="px-1 pb-3 flex items-center justify-between gap-3 flex-wrap">
+            <div className="px-1 pb-3 flex items-start sm:items-center justify-between gap-3 flex-wrap">
               <span className="text-[11px] text-muted font-mono">表示期間</span>
-              <div className="flex items-center gap-2 flex-wrap justify-end">
+              <div className="min-w-0 flex items-center gap-2 flex-wrap justify-start sm:justify-end">
                 <div className="flex items-center bg-subtle rounded-full p-[3px] gap-[2px]">
                   {(['price', 'return'] as ChartDisplayMode[]).map(mode => (
                     <button
@@ -1190,15 +1190,15 @@ export function ChartView({ period, onPeriodChange, initialStock, sectors, corre
                     </button>
                   ))}
                 </div>
-                <div className="flex items-center bg-subtle rounded-full p-[3px] gap-[2px]">
+                <div className="flex items-center gap-1">
                   {PERIODS.map(p => (
                     <button
                       key={p}
                       type="button"
                       onClick={() => onPeriodChange(p)}
-                      className={`h-[30px] px-3 rounded-full text-[12px] font-semibold transition-all cursor-pointer tabular-nums ${
+                      className={`h-[30px] px-2 text-[12px] font-semibold transition-colors cursor-pointer tabular-nums ${
                         period === p
-                          ? 'bg-paper text-ink shadow-[0_1px_3px_rgba(0,0,0,0.12)]'
+                          ? 'text-ink'
                           : 'text-muted hover:text-ink'
                       }`}
                     >

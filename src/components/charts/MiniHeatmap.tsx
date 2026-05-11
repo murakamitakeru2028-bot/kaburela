@@ -32,7 +32,7 @@ export function MiniHeatmap({ stocks, matrix, minCorr, enterDelay = 0 }: Props) 
 
   const N = stocks.length
   const CELL = containerW > 0
-    ? Math.max(32, Math.floor((containerW - LABEL_W - 16 - GAP * (N - 1)) / N))
+    ? Math.max(24, Math.floor((containerW - LABEL_W - 16 - GAP * (N - 1)) / N))
     : 40
   const svgW = LABEL_W + N * CELL + GAP * (N - 1)
   const svgH = LABEL_H + N * CELL + GAP * (N - 1)
@@ -59,7 +59,7 @@ export function MiniHeatmap({ stocks, matrix, minCorr, enterDelay = 0 }: Props) 
     : 0
 
   return (
-    <div ref={wrapRef} className="relative w-full">
+    <div ref={wrapRef} className="relative w-full overflow-x-auto pb-1">
       {containerW > 0 && (
         <svg width={svgW} height={svgH} style={{ overflow: 'visible', display: 'block' }}>
           {stocks.map((s, col) => (

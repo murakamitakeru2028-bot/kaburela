@@ -438,9 +438,9 @@ export function HomeView({ onNavigate, sectors, correlation, health, period }: P
   ] as const
 
   return (
-    <div className="min-h-full w-full max-w-7xl mx-auto px-1 sm:px-2 lg:px-4 py-6 lg:py-8">
+    <div className="min-h-full w-full max-w-7xl mx-auto px-0 sm:px-2 lg:px-4 py-4 sm:py-6 lg:py-8">
       <section
-        className="relative overflow-hidden border-y border-border py-8 lg:py-10"
+        className="relative overflow-hidden border-y border-border py-6 sm:py-8 lg:py-10"
         style={{
           backgroundImage: 'linear-gradient(var(--color-border) 1px, transparent 1px), linear-gradient(90deg, var(--color-border) 1px, transparent 1px)',
           backgroundSize: '44px 44px',
@@ -454,7 +454,7 @@ export function HomeView({ onNavigate, sectors, correlation, health, period }: P
               <span className="text-[11px] font-mono uppercase tracking-[0.12em] text-muted">相関分析ダッシュボード</span>
             </div>
 
-            <h1 className="mt-5 text-[44px] sm:text-[58px] lg:text-[72px] leading-[0.92] font-semibold tracking-[-1.4px] text-ink">
+            <h1 className="mt-5 text-[38px] sm:text-[58px] lg:text-[72px] leading-[0.92] font-semibold tracking-[-1.4px] text-ink">
               Kaburela
             </h1>
             <p className="mt-5 max-w-2xl text-[15px] sm:text-[16px] leading-7 text-muted">

@@ -118,7 +118,7 @@ function SectorNetwork({
   const [hoveredEdgeKey, setHoveredEdgeKey] = useState<string | null>(null)
   const { isDark } = useTheme()
   const N = sectors.length
-  const nodeR = clamp(Math.min(size.w, size.h) * 0.065, 42, 54)
+  const nodeR = clamp(Math.min(size.w, size.h) * 0.065, 30, 54)
   const hitR = nodeR + 12
 
   const nodes = useMemo<XY[]>(() => {
@@ -289,7 +289,7 @@ function StockNetwork({
   const [hoveredNode, setHoveredNode] = useState<number | null>(null)
   const { isDark } = useTheme()
   const N = stocks.length
-  const nodeR = clamp(Math.min(size.w, size.h) * 0.052, 28, 38)
+  const nodeR = clamp(Math.min(size.w, size.h) * 0.052, 22, 38)
   const hitR = nodeR + 10
 
   const nodes = useMemo<XY[]>(() => {
@@ -324,7 +324,7 @@ function StockNetwork({
 
   return (
     <div ref={ref} className="w-full h-full relative overflow-hidden">
-      <div className="absolute top-3 left-3 z-10 flex items-center gap-3">
+      <div className="absolute top-3 left-3 right-3 z-10 flex flex-wrap items-center gap-2 sm:gap-3">
         {onBack && (
           <button
             onClick={onBack}
@@ -464,7 +464,7 @@ function StockNetwork({
 
 function Legend() {
   return (
-    <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-5 pointer-events-none">
+    <div className="absolute bottom-3 left-3 right-3 flex flex-wrap justify-center gap-x-5 gap-y-1 pointer-events-none">
       <div className="flex items-center gap-1.5">
         <span className="w-5 h-[2px] rounded-full" style={{ backgroundColor: 'var(--color-pos)' }} />
         <span className="text-[10px] text-muted font-mono">正の相関</span>

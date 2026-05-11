@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type UIEvent, type WheelEvent } from 'react'
 import { cn } from '../../lib/cn'
 import { hexToRgba } from '../../lib/colorUtils'
 import type { CorrelationResponse, SectorData } from '../../lib/api'
@@ -11,37 +11,44 @@ interface Props {
   onStockSelect: (stock: StockInfo) => void
 }
 
-type Mode = 'cross' | 'inside'
+type Mode = 'all' | 'cross' | 'inside'
 type Sign = 'all' | 'pos' | 'neg'
 type SortMode = 'strength' | 'highest' | 'lowest' | 'name'
 
-interface Pair {
+interface RankedPair {
   stockA: StockInfo
   stockB: StockInfo
   corr: number
-}
-
-interface SectorRanking {
-  sector: SectorData
-  pairs: Pair[]
-  total: number
-}
-
-interface CrossSectorPair extends Pair {
   sectorA: SectorData
   sectorB: SectorData
 }
 
-interface PairRanking<T extends Pair> {
-  pairs: T[]
+interface PairRanking {
+  pairs: RankedPair[]
   total: number
 }
 
-const MAX_CROSS_ROWS = 30
-const MAX_SECTOR_ROWS = 18
+interface SectorRanking {
+  sector: SectorData
+  pairs: RankedPair[]
+  total: number
+}
+
+const MAX_LIST_ROWS = 36
+const MAX_SECTOR_ROWS = 20
 
 function corrLabel(corr: number): string {
   return `${corr >= 0 ? '+' : ''}${corr.toFixed(2)}`
+}
+
+function corrColor(corr: number): string {
+  return corr >= 0 ? 'var(--color-pos)' : 'var(--color-neg)'
+}
+
+function modeLabel(mode: Mode): string {
+  if (mode === 'all') return 'すべて'
+  if (mode === 'cross') return 'セクター間'
+  return 'セクター内'
 }
 
 function signLabel(sign: Sign): string {
@@ -61,20 +68,6 @@ function sortLabel(sort: SortMode): string {
   return '強さ順'
 }
 
-function pairMatchesSign(corr: number, sign: Sign): boolean {
-  if (sign === 'pos') return corr >= 0
-  if (sign === 'neg') return corr < 0
-  return true
-}
-
-function corrColor(corr: number): string {
-  return corr >= 0 ? 'var(--color-pos)' : 'var(--color-neg)'
-}
-
-function pairName(pair: Pair): string {
-  return `${pair.stockA.label}${pair.stockB.label}${pair.stockA.code}${pair.stockB.code}`
-}
-
 function normalizeQuery(value: string): string {
   return value.trim().toLowerCase()
 }
@@ -84,45 +77,80 @@ function stockMatches(stock: StockInfo, query: string): boolean {
   return [stock.code, stock.name, stock.label].some(value => value.toLowerCase().includes(query))
 }
 
-function pairMatchesQuery(pair: Pair, query: string): boolean {
+function pairMatchesQuery(pair: RankedPair, query: string): boolean {
   if (!query) return true
-  return stockMatches(pair.stockA, query) || stockMatches(pair.stockB, query)
-}
-
-function crossPairMatchesQuery(pair: CrossSectorPair, query: string): boolean {
-  if (!query) return true
-  return pairMatchesQuery(pair, query) ||
+  return stockMatches(pair.stockA, query) ||
+    stockMatches(pair.stockB, query) ||
     pair.sectorA.name.toLowerCase().includes(query) ||
     pair.sectorB.name.toLowerCase().includes(query)
 }
 
-function comparePairs(a: Pair, b: Pair, sort: SortMode): number {
+function pairMatchesSign(corr: number, sign: Sign): boolean {
+  if (sign === 'pos') return corr >= 0
+  if (sign === 'neg') return corr < 0
+  return true
+}
+
+function pairName(pair: RankedPair): string {
+  return `${pair.stockA.label}${pair.stockB.label}${pair.stockA.code}${pair.stockB.code}`
+}
+
+function comparePairs(a: RankedPair, b: RankedPair, sort: SortMode): number {
   if (sort === 'highest') return b.corr - a.corr
   if (sort === 'lowest') return a.corr - b.corr
   if (sort === 'name') return pairName(a).localeCompare(pairName(b), 'ja')
   return Math.abs(b.corr) - Math.abs(a.corr)
 }
 
-function addTopPair<T extends Pair>(pairs: T[], pair: T, limit: number, sort: SortMode) {
+function addTopPair(pairs: RankedPair[], pair: RankedPair, limit: number, sort: SortMode) {
   if (pairs.length >= limit && comparePairs(pair, pairs[pairs.length - 1], sort) >= 0) return
-
   const insertAt = pairs.findIndex(item => comparePairs(pair, item, sort) < 0)
   pairs.splice(insertAt === -1 ? pairs.length : insertAt, 0, pair)
   if (pairs.length > limit) pairs.pop()
 }
 
-function buildSectorPairs(sector: SectorData, minCorr: number, sign: Sign, query: string, sort: SortMode): PairRanking<Pair> {
-  const pairs: Pair[] = []
+function sectorByCode(sectors: SectorData[]): Map<string, SectorData> {
+  const map = new Map<string, SectorData>()
+  sectors.forEach(sector => {
+    sector.stocks.forEach(stock => map.set(stock.code, sector))
+  })
+  return map
+}
+
+function buildListPairs(
+  mode: Exclude<Mode, 'inside'>,
+  sectors: SectorData[],
+  correlation: CorrelationResponse | null,
+  minCorr: number,
+  sign: Sign,
+  query: string,
+  sectorFilter: string,
+  sort: SortMode,
+): PairRanking {
+  if (!correlation) return { pairs: [], total: 0 }
+
+  const sectorsByCode = sectorByCode(sectors)
+  const pairs: RankedPair[] = []
   let total = 0
 
-  for (let i = 0; i < sector.stocks.length; i++) {
-    for (let j = i + 1; j < sector.stocks.length; j++) {
-      const corr = sector.matrix[i]?.[j]
+  for (let i = 0; i < correlation.stocks.length; i++) {
+    const stockA = correlation.stocks[i]
+    const sectorA = sectorsByCode.get(stockA.code)
+    if (!sectorA) continue
+
+    for (let j = i + 1; j < correlation.stocks.length; j++) {
+      const stockB = correlation.stocks[j]
+      const sectorB = sectorsByCode.get(stockB.code)
+      if (!sectorB) continue
+      if (mode === 'cross' && sectorA.name === sectorB.name) continue
+      if (sectorFilter !== 'all' && sectorA.name !== sectorFilter && sectorB.name !== sectorFilter) continue
+
+      const corr = correlation.matrix[i]?.[j]
       if (corr == null || Math.abs(corr) < minCorr || !pairMatchesSign(corr, sign)) continue
-      const pair = { stockA: sector.stocks[i], stockB: sector.stocks[j], corr }
+      const pair = { stockA, stockB, corr, sectorA, sectorB }
       if (!pairMatchesQuery(pair, query)) continue
       total++
-      addTopPair(pairs, pair, MAX_SECTOR_ROWS, sort)
+      addTopPair(pairs, pair, MAX_LIST_ROWS, sort)
     }
   }
 
@@ -141,97 +169,125 @@ function buildSectorRankings(
     if (sectorFilter !== 'all' && sector.name !== sectorFilter) {
       return { sector, pairs: [], total: 0 }
     }
-    const ranking = buildSectorPairs(sector, minCorr, sign, query, sort)
-    return {
-      sector,
-      pairs: ranking.pairs,
-      total: ranking.total,
+
+    const pairs: RankedPair[] = []
+    let total = 0
+    for (let i = 0; i < sector.stocks.length; i++) {
+      for (let j = i + 1; j < sector.stocks.length; j++) {
+        const corr = sector.matrix[i]?.[j]
+        if (corr == null || Math.abs(corr) < minCorr || !pairMatchesSign(corr, sign)) continue
+        const pair = {
+          stockA: sector.stocks[i],
+          stockB: sector.stocks[j],
+          corr,
+          sectorA: sector,
+          sectorB: sector,
+        }
+        if (!pairMatchesQuery(pair, query)) continue
+        total++
+        addTopPair(pairs, pair, MAX_SECTOR_ROWS, sort)
+      }
     }
+    return { sector, pairs, total }
   })
 }
 
-function buildCrossSectorPairs(
-  sectors: SectorData[],
-  correlation: CorrelationResponse | null,
-  minCorr: number,
-  sign: Sign,
-  query: string,
-  sectorFilter: string,
-  sort: SortMode,
-): PairRanking<CrossSectorPair> {
-  if (!correlation) return { pairs: [], total: 0 }
-
-  const indexByCode = new Map(correlation.stocks.map((stock, index) => [stock.code, index]))
-  const pairs: CrossSectorPair[] = []
-  let total = 0
-
-  for (let a = 0; a < sectors.length; a++) {
-    for (let b = a + 1; b < sectors.length; b++) {
-      const sectorA = sectors[a]
-      const sectorB = sectors[b]
-      if (sectorFilter !== 'all' && sectorA.name !== sectorFilter && sectorB.name !== sectorFilter) continue
-
-      for (const stockA of sectorA.stocks) {
-        const rowIndex = indexByCode.get(stockA.code)
-        if (rowIndex == null) continue
-
-        for (const stockB of sectorB.stocks) {
-          const colIndex = indexByCode.get(stockB.code)
-          if (colIndex == null) continue
-
-          const corr = correlation.matrix[rowIndex]?.[colIndex]
-          if (corr == null || Math.abs(corr) < minCorr || !pairMatchesSign(corr, sign)) continue
-          const pair = { stockA, stockB, corr, sectorA, sectorB }
-          if (!crossPairMatchesQuery(pair, query)) continue
-          total++
-          addTopPair(pairs, pair, MAX_CROSS_ROWS, sort)
-        }
-      }
-    }
-  }
-
-  return { pairs, total }
-}
-
 export function RankingView({ sectors, correlation, minCorr, onStockSelect }: Props) {
-  const [mode, setMode] = useState<Mode>('cross')
+  const [mode, setMode] = useState<Mode>('all')
   const [sign, setSign] = useState<Sign>('all')
   const [sort, setSort] = useState<SortMode>('strength')
   const [query, setQuery] = useState('')
+  const chromeRootRef = useRef<HTMLDivElement>(null)
+  const chromeProgressRef = useRef(0)
+  const chromeFrameRef = useRef<number | null>(null)
+  const lastScrollTopRef = useRef(0)
   const [sectorFilter, setSectorFilter] = useState('all')
   const [selectedSector, setSelectedSector] = useState<string | null>(null)
   const normalizedQuery = normalizeQuery(query)
 
-  const crossRanking = useMemo(
-    () => buildCrossSectorPairs(sectors, correlation, minCorr, sign, normalizedQuery, sectorFilter, sort),
-    [sectors, correlation, minCorr, sign, normalizedQuery, sectorFilter, sort],
+  const listRanking = useMemo(
+    () => buildListPairs(mode === 'cross' ? 'cross' : 'all', sectors, correlation, minCorr, sign, normalizedQuery, sectorFilter, sort),
+    [mode, sectors, correlation, minCorr, sign, normalizedQuery, sectorFilter, sort],
   )
   const sectorRankings = useMemo(
     () => buildSectorRankings(sectors, minCorr, sign, normalizedQuery, sectorFilter, sort),
     [sectors, minCorr, sign, normalizedQuery, sectorFilter, sort],
   )
 
-  const visibleCrossPairs = crossRanking.pairs
   const visibleSectorGroups = sectorRankings.filter(group => group.total > 0)
   const activeSector = visibleSectorGroups.find(group => group.sector.name === selectedSector) ?? visibleSectorGroups[0] ?? null
   const totalSectorPairs = sectorRankings.reduce((sum, group) => sum + group.total, 0)
-  const empty = mode === 'cross' ? visibleCrossPairs.length === 0 : visibleSectorGroups.length === 0
+  const empty = mode === 'inside' ? visibleSectorGroups.length === 0 : listRanking.pairs.length === 0
+
+  useEffect(() => {
+    return () => {
+      if (chromeFrameRef.current != null) cancelAnimationFrame(chromeFrameRef.current)
+    }
+  }, [])
+
+  function applyChromeProgress(progress: number) {
+    const root = chromeRootRef.current
+    if (!root) return
+    const compact = window.innerWidth < 640
+    const topHeight = compact ? 430 : 210
+    const sectionHeight = compact ? 86 : 62
+    const sectorHeight = compact ? 58 : 46
+    root.style.setProperty('--chrome-top-height', `${Math.max(0, topHeight * (1 - progress))}px`)
+    root.style.setProperty('--chrome-section-height', `${Math.max(0, sectionHeight * (1 - progress))}px`)
+    root.style.setProperty('--chrome-sector-height', `${Math.max(0, sectorHeight * (1 - progress))}px`)
+    root.style.setProperty('--chrome-opacity', String(1 - progress))
+    root.style.setProperty('--chrome-shift', `${-8 * progress}px`)
+  }
+
+  function setChromeProgressDirect(nextProgress: number) {
+    const progress = Math.max(0, Math.min(1, nextProgress))
+    if (Math.abs(progress - chromeProgressRef.current) < 0.002) return
+    chromeProgressRef.current = progress
+    if (chromeFrameRef.current != null) return
+    chromeFrameRef.current = requestAnimationFrame(() => {
+      chromeFrameRef.current = null
+      applyChromeProgress(chromeProgressRef.current)
+    })
+  }
+
+  function handleListScroll(event: UIEvent<HTMLDivElement>) {
+    const nextTop = event.currentTarget.scrollTop
+    const delta = nextTop - lastScrollTopRef.current
+    if (delta !== 0) {
+      setChromeProgressDirect(nextTop <= 2 ? 0 : chromeProgressRef.current + delta / 160)
+    }
+    lastScrollTopRef.current = nextTop
+  }
+
+  function handleListWheel(event: WheelEvent<HTMLDivElement>) {
+    if (event.deltaY < 0) {
+      setChromeProgressDirect(chromeProgressRef.current + event.deltaY / 160)
+    }
+  }
+
+  const topChromeStyle = {
+    maxHeight: 'var(--chrome-top-height, 430px)',
+    opacity: 'var(--chrome-opacity, 1)',
+    transform: 'translateY(var(--chrome-shift, 0px))',
+  }
 
   return (
-    <div className="h-full min-h-0 px-2 py-5 sm:px-4 lg:px-6 flex flex-col gap-5">
-      <header className="shrink-0 flex items-start justify-between gap-5 flex-wrap">
+    <div ref={chromeRootRef} className="h-full min-h-0 px-1.5 py-2 sm:px-4 sm:py-3 lg:px-6 flex flex-col gap-3">
+      <div className="shrink-0 overflow-hidden transition-opacity duration-75" style={topChromeStyle}>
+      <header className="flex items-start justify-between gap-5 flex-wrap">
         <div className="min-w-0">
           <p className="text-[11px] text-muted font-mono tracking-[0.12em] uppercase">Ranking</p>
-          <h2 className="mt-1 text-[24px] font-semibold text-ink tracking-[-0.6px]">相関ランキング</h2>
+          <h2 className="mt-1 text-[20px] sm:text-[24px] font-semibold text-ink tracking-[-0.6px]">相関ランキング</h2>
           <p className="mt-1 text-[12px] text-muted">
-            セクターをまたぐ関係と、セクター内の強い組み合わせを切り替えて確認できます。
+            セクター横断、セクター内、全ペアを同じ基準で並べ替えて確認できます。
           </p>
         </div>
 
-        <div className="flex flex-col items-end gap-2">
-          <div className="flex items-center gap-2 flex-wrap justify-end">
+        <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:items-end">
+          <div className="flex items-center gap-2 flex-wrap justify-start sm:justify-end">
             <SegmentedSwitch
               options={[
+                { id: 'all', label: 'すべて' },
                 { id: 'cross', label: 'セクター間' },
                 { id: 'inside', label: 'セクター内' },
               ]}
@@ -251,7 +307,7 @@ export function RankingView({ sectors, correlation, minCorr, onStockSelect }: Pr
         </div>
       </header>
 
-      <div className="shrink-0 grid gap-2 md:grid-cols-[minmax(220px,1fr)_170px_170px]">
+      <div className="mt-3 grid min-w-0 gap-2 md:grid-cols-[minmax(220px,1fr)_170px_170px]">
         <label className="h-10 rounded-full bg-paper border border-border px-4 flex items-center gap-2">
           <svg width="14" height="14" viewBox="0 0 15 15" fill="none" className="text-muted shrink-0" aria-hidden>
             <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" strokeWidth="1.5" />
@@ -289,28 +345,35 @@ export function RankingView({ sectors, correlation, minCorr, onStockSelect }: Pr
         </select>
       </div>
 
-      <div className="grid gap-3 shrink-0" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
-        <Metric label="表示モード" value={mode === 'cross' ? 'セクター間' : 'セクター内'} />
+      <div className="mt-3 grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 118px), 1fr))' }}>
+        <Metric label="表示モード" value={modeLabel(mode)} />
         <Metric label="対象" value={signLabel(sign)} />
         <Metric label="並び順" value={sortLabel(sort)} />
         <Metric label="下限" value={minCorr.toFixed(2)} />
-        <Metric label="候補ペア" value={mode === 'cross' ? crossRanking.total.toLocaleString('ja-JP') : totalSectorPairs.toLocaleString('ja-JP')} />
+        <Metric label="候補ペア" value={mode === 'inside' ? totalSectorPairs.toLocaleString('ja-JP') : listRanking.total.toLocaleString('ja-JP')} />
+      </div>
+
       </div>
 
       <div className="min-h-0 flex-1">
         {empty ? (
           <EmptyState />
-        ) : mode === 'cross' ? (
-          <CrossRankingTable
-            pairs={visibleCrossPairs}
-            total={crossRanking.total}
-            onStockSelect={onStockSelect}
-          />
-        ) : (
+        ) : mode === 'inside' ? (
           <SectorRankingPanel
             groups={visibleSectorGroups}
             active={activeSector}
+            onListScroll={handleListScroll}
+            onListWheel={handleListWheel}
             onSelectSector={setSelectedSector}
+            onStockSelect={onStockSelect}
+          />
+        ) : (
+          <RankingList
+            mode={mode}
+            pairs={listRanking.pairs}
+            total={listRanking.total}
+            onListScroll={handleListScroll}
+            onListWheel={handleListWheel}
             onStockSelect={onStockSelect}
           />
         )}
@@ -329,14 +392,14 @@ function SegmentedSwitch<T extends string>({
   onChange: (value: T) => void
 }) {
   return (
-    <div className="flex items-center bg-subtle rounded-full p-1 gap-1">
+    <div className="max-w-full flex items-center bg-subtle rounded-full p-1 gap-1 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {options.map(option => (
         <button
           key={option.id}
           type="button"
           onClick={() => onChange(option.id)}
           className={cn(
-            'h-8 px-4 rounded-full text-[12px] font-semibold transition-all cursor-pointer whitespace-nowrap',
+            'h-8 px-3 sm:px-4 rounded-full text-[12px] font-semibold transition-all cursor-pointer whitespace-nowrap',
             value === option.id
               ? 'bg-paper text-ink shadow-[0_1px_4px_rgba(0,0,0,0.12)]'
               : 'text-muted hover:text-ink',
@@ -358,48 +421,72 @@ function Metric({ label, value }: { label: string; value: string }) {
   )
 }
 
+function StatusPill({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="h-8 px-3 rounded-full bg-subtle flex items-center gap-2">
+      <span className="text-[10px] text-muted font-mono tracking-[0.08em] uppercase">{label}</span>
+      <span className="text-[12px] text-ink font-semibold font-mono tabular-nums">{value}</span>
+    </div>
+  )
+}
+
 function EmptyState() {
   return (
-    <div className="h-full min-h-[260px] flex items-center justify-center border-y border-border">
+    <div className="h-full min-h-[260px] flex items-center justify-center border-y border-border/70">
       <p className="text-[12px] text-muted font-mono">
-        条件に一致するランキングがありません。相関係数の下限を下げてください。
+        条件に一致するランキングがありません。相関係数の下限やフィルターを調整してください。
       </p>
     </div>
   )
 }
 
-function CrossRankingTable({
+function RankingList({
+  mode,
   pairs,
   total,
+  onListScroll,
+  onListWheel,
   onStockSelect,
 }: {
-  pairs: CrossSectorPair[]
+  mode: Exclude<Mode, 'inside'>
+  pairs: RankedPair[]
   total: number
+  onListScroll: (event: UIEvent<HTMLDivElement>) => void
+  onListWheel: (event: WheelEvent<HTMLDivElement>) => void
   onStockSelect: (stock: StockInfo) => void
 }) {
+  const sectionHeaderStyle = {
+    maxHeight: 'var(--chrome-section-height, 86px)',
+    opacity: 'var(--chrome-opacity, 1)',
+  }
+
   return (
-    <section className="h-full min-h-0 flex flex-col rounded-[18px] border border-border bg-paper overflow-hidden">
-      <div className="px-5 py-4 border-b border-border flex items-center justify-between gap-4 shrink-0">
-        <div>
-          <h3 className="text-[15px] font-semibold text-ink">セクター間ランキング</h3>
+    <section className="h-full min-h-0 flex flex-col overflow-hidden">
+      <div className="px-1 pb-3 flex flex-wrap items-end justify-between gap-3 sm:gap-4 shrink-0 overflow-hidden transition-opacity duration-75" style={sectionHeaderStyle}>
+        <div className="min-w-0">
+          <p className="text-[10px] text-muted font-mono tracking-[0.14em] uppercase">Ranking Board</p>
+          <h3 className="text-[15px] font-semibold text-ink">{modeLabel(mode)}ランキング</h3>
           <p className="text-[11px] text-muted mt-0.5">
-            別セクター同士の銘柄ペアを上位 {Math.min(MAX_CROSS_ROWS, total)} 件表示
+            {mode === 'all' ? 'セクター内とセクター間をまとめて表示' : '別セクター同士だけを表示'}
           </p>
         </div>
-        <span className="text-[11px] text-muted font-mono tabular-nums">{total} pairs</span>
+        <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+          <StatusPill label="表示" value={pairs.length.toLocaleString('ja-JP')} />
+          <StatusPill label="候補" value={total.toLocaleString('ja-JP')} />
+        </div>
       </div>
 
-      <div className="hidden lg:grid grid-cols-[56px_220px_minmax(0,1fr)_160px_88px] gap-3 px-5 py-2.5 border-b border-border text-[10px] text-muted font-mono tracking-[0.08em] uppercase shrink-0">
+      <div className="hidden lg:grid grid-cols-[56px_minmax(0,1fr)_220px_160px_88px] gap-3 px-1 py-2.5 border-y border-border/70 text-[10px] text-muted font-mono tracking-[0.08em] uppercase shrink-0">
         <span>Rank</span>
-        <span>Sector</span>
         <span>Pair</span>
+        <span>Sector</span>
         <span>Strength</span>
         <span className="text-right">Corr</span>
       </div>
 
-      <div className="min-h-0 overflow-auto divide-y divide-border">
+      <div className="min-h-0 overflow-auto" onScroll={onListScroll} onWheel={onListWheel}>
         {pairs.map((pair, index) => (
-          <CrossRow
+          <RankingRow
             key={`${pair.sectorA.name}-${pair.stockA.code}-${pair.sectorB.name}-${pair.stockB.code}`}
             rank={index + 1}
             pair={pair}
@@ -411,55 +498,48 @@ function CrossRankingTable({
   )
 }
 
-function CrossRow({
-  rank,
-  pair,
-  onStockSelect,
-}: {
-  rank: number
-  pair: CrossSectorPair
-  onStockSelect: (stock: StockInfo) => void
-}) {
-  return (
-    <div className="grid grid-cols-[40px_minmax(0,1fr)_72px] lg:grid-cols-[56px_220px_minmax(0,1fr)_160px_88px] gap-3 items-center px-4 lg:px-5 py-3 hover:bg-subtle/70 transition-colors">
-      <RankNumber rank={rank} />
-      <SectorPairBadge sectorA={pair.sectorA} sectorB={pair.sectorB} />
-      <StockPair stockA={pair.stockA} stockB={pair.stockB} onStockSelect={onStockSelect} />
-      <StrengthBar corr={pair.corr} className="hidden lg:flex" />
-      <CorrBadge corr={pair.corr} />
-    </div>
-  )
-}
-
 function SectorRankingPanel({
   groups,
   active,
+  onListScroll,
+  onListWheel,
   onSelectSector,
   onStockSelect,
 }: {
   groups: SectorRanking[]
   active: SectorRanking | null
+  onListScroll: (event: UIEvent<HTMLDivElement>) => void
+  onListWheel: (event: WheelEvent<HTMLDivElement>) => void
   onSelectSector: (sector: string) => void
   onStockSelect: (stock: StockInfo) => void
 }) {
   if (!active) return <EmptyState />
 
+  const sectionHeaderStyle = {
+    maxHeight: 'var(--chrome-section-height, 86px)',
+    opacity: 'var(--chrome-opacity, 1)',
+  }
+  const sectorHeaderStyle = {
+    maxHeight: 'var(--chrome-sector-height, 58px)',
+    opacity: 'var(--chrome-opacity, 1)',
+  }
+
   return (
-    <section className="h-full min-h-0 grid gap-4 lg:grid-cols-[260px_minmax(0,1fr)]">
-      <div className="min-h-0 rounded-[18px] border border-border bg-paper overflow-hidden">
-        <div className="px-4 py-3 border-b border-border">
+    <section className="h-full min-h-0 grid gap-3 sm:gap-5 lg:grid-cols-[260px_minmax(0,1fr)]">
+      <div className="min-h-0 overflow-hidden">
+        <div className="px-1 pb-3 overflow-hidden transition-opacity duration-75" style={sectorHeaderStyle}>
+          <p className="text-[10px] text-muted font-mono tracking-[0.14em] uppercase">Sectors</p>
           <h3 className="text-[14px] font-semibold text-ink">セクター選択</h3>
-          <p className="text-[11px] text-muted mt-0.5">表示するセクターを切り替え</p>
         </div>
-        <div className="max-h-[240px] lg:max-h-none lg:h-[calc(100%-65px)] overflow-auto">
+        <div className="max-h-[170px] sm:max-h-[240px] lg:max-h-none lg:h-full overflow-auto border-y border-border/70" onScroll={onListScroll} onWheel={onListWheel}>
           {groups.map(group => (
             <button
               key={group.sector.name}
               type="button"
               onClick={() => onSelectSector(group.sector.name)}
               className={cn(
-                'w-full px-4 py-3 flex items-center gap-3 text-left border-b border-border last:border-b-0 cursor-pointer transition-colors',
-                active.sector.name === group.sector.name ? 'bg-subtle text-ink' : 'text-muted hover:text-ink hover:bg-subtle/60',
+                'w-full px-1 py-3 flex items-center gap-3 text-left border-b border-border/60 last:border-b-0 cursor-pointer transition-colors',
+                active.sector.name === group.sector.name ? 'text-ink bg-subtle/60' : 'text-muted hover:text-ink hover:bg-subtle/40',
               )}
             >
               <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: group.sector.color }} />
@@ -475,28 +555,29 @@ function SectorRankingPanel({
         </div>
       </div>
 
-      <div className="min-h-0 rounded-[18px] border border-border bg-paper overflow-hidden flex flex-col">
-        <div className="px-5 py-4 border-b border-border flex items-center justify-between gap-4 shrink-0">
+      <section className="min-h-0 overflow-hidden flex flex-col">
+        <div className="px-1 pb-3 flex flex-wrap items-end justify-between gap-3 sm:gap-4 shrink-0 overflow-hidden transition-opacity duration-75" style={sectionHeaderStyle}>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: active.sector.color }} />
               <h3 className="text-[15px] font-semibold text-ink truncate">{active.sector.name}</h3>
             </div>
-            <p className="text-[11px] text-muted mt-0.5">
-              セクター内の相関ペアを上位 {Math.min(MAX_SECTOR_ROWS, active.total)} 件表示
-            </p>
+            <p className="text-[11px] text-muted mt-0.5">セクター内の相関ペアを上位表示</p>
           </div>
-          <span className="text-[11px] text-muted font-mono tabular-nums shrink-0">{active.total} pairs</span>
+          <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+            <StatusPill label="表示" value={active.pairs.length.toLocaleString('ja-JP')} />
+            <StatusPill label="候補" value={active.total.toLocaleString('ja-JP')} />
+          </div>
         </div>
 
-        <div className="hidden md:grid grid-cols-[56px_minmax(0,1fr)_150px_80px] gap-3 px-5 py-2.5 border-b border-border text-[10px] text-muted font-mono tracking-[0.08em] uppercase shrink-0">
+        <div className="hidden md:grid grid-cols-[56px_minmax(0,1fr)_150px_80px] gap-3 px-1 py-2.5 border-y border-border/70 text-[10px] text-muted font-mono tracking-[0.08em] uppercase shrink-0">
           <span>Rank</span>
           <span>Pair</span>
           <span>Strength</span>
           <span className="text-right">Corr</span>
         </div>
 
-        <div className="min-h-0 overflow-auto divide-y divide-border">
+        <div className="min-h-0 overflow-auto" onScroll={onListScroll} onWheel={onListWheel}>
           {active.pairs.map((pair, index) => (
             <SectorRow
               key={`${pair.stockA.code}-${pair.stockB.code}`}
@@ -506,8 +587,29 @@ function SectorRankingPanel({
             />
           ))}
         </div>
-      </div>
+      </section>
     </section>
+  )
+}
+
+function RankingRow({
+  rank,
+  pair,
+  onStockSelect,
+}: {
+  rank: number
+  pair: RankedPair
+  onStockSelect: (stock: StockInfo) => void
+}) {
+  return (
+    <div className="relative grid grid-cols-[34px_minmax(0,1fr)] min-[520px]:grid-cols-[40px_minmax(0,1fr)_72px] lg:grid-cols-[56px_minmax(0,1fr)_220px_160px_88px] gap-x-2 gap-y-1 sm:gap-x-3 items-center border-b border-border/60 px-1 py-3 sm:py-3.5 transition-colors hover:bg-subtle/55">
+      <span className="absolute left-0 top-3 bottom-3 w-1 rounded-r-full" style={{ backgroundColor: corrColor(pair.corr), opacity: rank <= 3 ? 0.95 : 0.5 }} />
+      <RankNumber rank={rank} />
+      <StockPair stockA={pair.stockA} stockB={pair.stockB} onStockSelect={onStockSelect} />
+      <SectorPairBadge sectorA={pair.sectorA} sectorB={pair.sectorB} />
+      <StrengthBar corr={pair.corr} className="hidden lg:flex" />
+      <CorrBadge corr={pair.corr} />
+    </div>
   )
 }
 
@@ -517,11 +619,12 @@ function SectorRow({
   onStockSelect,
 }: {
   rank: number
-  pair: Pair
+  pair: RankedPair
   onStockSelect: (stock: StockInfo) => void
 }) {
   return (
-    <div className="grid grid-cols-[40px_minmax(0,1fr)_72px] md:grid-cols-[56px_minmax(0,1fr)_150px_80px] gap-3 items-center px-4 md:px-5 py-3 hover:bg-subtle/70 transition-colors">
+    <div className="relative grid grid-cols-[34px_minmax(0,1fr)] min-[520px]:grid-cols-[40px_minmax(0,1fr)_72px] md:grid-cols-[56px_minmax(0,1fr)_150px_80px] gap-x-2 gap-y-1 sm:gap-x-3 items-center border-b border-border/60 px-1 py-3 sm:py-3.5 transition-colors hover:bg-subtle/55">
+      <span className="absolute left-0 top-3 bottom-3 w-1 rounded-r-full" style={{ backgroundColor: corrColor(pair.corr), opacity: rank <= 3 ? 0.95 : 0.5 }} />
       <RankNumber rank={rank} />
       <StockPair stockA={pair.stockA} stockB={pair.stockB} onStockSelect={onStockSelect} />
       <StrengthBar corr={pair.corr} className="hidden md:flex" />
@@ -531,14 +634,11 @@ function SectorRow({
 }
 
 function RankNumber({ rank }: { rank: number }) {
-  const strong = rank <= 3
   return (
-    <span
-      className={cn(
-        'text-right font-mono tabular-nums shrink-0',
-        strong ? 'text-[15px] font-semibold text-ink' : 'text-[12px] text-muted',
-      )}
-    >
+    <span className={cn(
+      'justify-self-end font-mono tabular-nums shrink-0',
+      rank <= 3 ? 'text-[16px] font-semibold text-ink' : 'text-[12px] text-muted',
+    )}>
       {rank.toString().padStart(2, '0')}
     </span>
   )
@@ -548,7 +648,7 @@ function SectorPairBadge({ sectorA, sectorB }: { sectorA: SectorData; sectorB: S
   return (
     <div className="hidden lg:flex min-w-0 items-center gap-2">
       <SectorBadge sector={sectorA} />
-      <span className="text-[11px] text-muted">×</span>
+      <span className="h-px w-4 bg-border" />
       <SectorBadge sector={sectorB} />
     </div>
   )
@@ -577,9 +677,9 @@ function StockPair({
   onStockSelect: (stock: StockInfo) => void
 }) {
   return (
-    <div className="min-w-0 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+    <div className="min-w-0 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1.5 sm:gap-2">
       <StockButton stock={stockA} align="right" onStockSelect={onStockSelect} />
-      <span className="text-[11px] text-muted">×</span>
+      <span className="h-px w-3 sm:w-5 bg-border" />
       <StockButton stock={stockB} align="left" onStockSelect={onStockSelect} />
     </div>
   )
@@ -599,12 +699,12 @@ function StockButton({
       type="button"
       onClick={() => onStockSelect(stock)}
       className={cn(
-        'min-w-0 cursor-pointer group',
+        'min-w-0 cursor-pointer rounded-lg px-1.5 sm:px-2 py-1 transition-colors hover:bg-subtle',
         align === 'right' ? 'text-right' : 'text-left',
       )}
       title={`${stock.name} (${stock.code})`}
     >
-      <span className="block truncate text-[13px] font-semibold text-ink group-hover:text-muted">{stock.label}</span>
+      <span className="block truncate text-[12px] sm:text-[13px] font-semibold text-ink">{stock.label}</span>
       <span className="block truncate text-[10px] text-muted font-mono tabular-nums">{stock.code}</span>
     </button>
   )
@@ -615,10 +715,10 @@ function StrengthBar({ corr, className }: { corr: number; className?: string }) 
   return (
     <div className={cn('items-center gap-2', className)}>
       <span className="w-10 text-[10px] text-muted">{toneLabel(corr)}</span>
-      <div className="h-[6px] flex-1 rounded-full bg-subtle overflow-hidden">
+      <div className="h-[3px] flex-1 rounded-full bg-border overflow-hidden">
         <div
           className="h-full rounded-full"
-          style={{ width: `${Math.max(6, Math.abs(corr) * 100)}%`, backgroundColor: color, opacity: 0.8 }}
+          style={{ width: `${Math.max(6, Math.abs(corr) * 100)}%`, backgroundColor: color, opacity: 0.9 }}
         />
       </div>
     </div>
@@ -628,7 +728,7 @@ function StrengthBar({ corr, className }: { corr: number; className?: string }) 
 function CorrBadge({ corr }: { corr: number }) {
   return (
     <span
-      className="justify-self-end h-8 min-w-[64px] px-2 rounded-full flex items-center justify-center text-[13px] font-semibold font-mono tabular-nums"
+      className="col-start-2 justify-self-start min-[520px]:col-auto min-[520px]:justify-self-end h-8 min-w-[64px] px-2 rounded-full flex items-center justify-center text-[13px] font-semibold font-mono tabular-nums"
       style={{
         color: corrColor(corr),
         backgroundColor: hexToRgba(corr >= 0 ? '#16a34a' : '#dc2626', 0.1),

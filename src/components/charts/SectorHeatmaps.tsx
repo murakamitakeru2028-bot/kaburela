@@ -45,7 +45,7 @@ function SectorCard({ sector, minCorr, index, onClick, onStockSelect }: SectorCa
   return (
     <div
       onClick={onClick}
-      className="bg-paper rounded-2xl overflow-hidden cursor-pointer shadow-[0_1px_4px_rgba(0,0,0,0.06)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.10)]"
+      className="bg-paper rounded-[8px] overflow-hidden cursor-pointer shadow-[0_1px_4px_rgba(0,0,0,0.06)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.10)]"
       style={{
         border: `1.5px solid ${hexToRgba(sector.color, 0.32)}`,
         animation: 'fade-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) both',
@@ -55,15 +55,15 @@ function SectorCard({ sector, minCorr, index, onClick, onStockSelect }: SectorCa
       onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.018)')}
       onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
     >
-      <div className="flex items-center justify-between px-4 pt-4 pb-3">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between gap-3 px-3 pt-3 pb-2 sm:px-4 sm:pt-4 sm:pb-3">
+        <div className="min-w-0 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: sector.color }} />
-          <span className="text-[13px] font-semibold text-ink tracking-[-0.2px]">{sector.name}</span>
+          <span className="min-w-0 truncate text-[13px] font-semibold text-ink tracking-[-0.2px]">{sector.name}</span>
         </div>
         <span className="text-[11px] text-muted font-mono tabular-nums">{sector.stocks.length} 銘柄</span>
       </div>
 
-      <div className="px-4 pb-3">
+      <div className="px-3 pb-3 sm:px-4">
         <MiniHeatmap
           stocks={sector.stocks}
           matrix={sector.matrix}
@@ -72,7 +72,7 @@ function SectorCard({ sector, minCorr, index, onClick, onStockSelect }: SectorCa
         />
       </div>
 
-      <div className="flex items-center justify-between px-4 py-3 border-t border-border">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-3 sm:px-4 border-t border-border">
         <div className="flex items-center gap-1.5">
           <span className="text-[10px] text-muted font-mono">平均相関</span>
           <span className="text-[12px] font-semibold font-mono tabular-nums" style={{ color: 'var(--color-pos)' }}>
@@ -126,8 +126,8 @@ function SectorDetailView({ sector, onBack, onStockSelect }: DetailViewProps) {
       className="h-full flex flex-col"
       style={{ animation: 'fade-up 0.3s cubic-bezier(0.16, 1, 0.3, 1) both' }}
     >
-      <div className="flex items-center justify-between px-5 pt-4 pb-3 shrink-0">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-3 pt-3 pb-3 sm:px-5 sm:pt-4 shrink-0">
+        <div className="min-w-0 flex flex-wrap items-center gap-2 sm:gap-3">
           <button
             onClick={onBack}
             className="flex items-center gap-1.5 text-muted hover:text-ink transition-colors cursor-pointer text-[13px]"
@@ -138,14 +138,14 @@ function SectorDetailView({ sector, onBack, onStockSelect }: DetailViewProps) {
             一覧に戻る
           </button>
           <span className="text-muted text-[13px]">/</span>
-          <div className="flex items-center gap-2">
+          <div className="min-w-0 flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: sector.color }} />
-            <span className="text-[15px] font-semibold text-ink tracking-[-0.3px]">{sector.name}</span>
+            <span className="min-w-0 truncate text-[15px] font-semibold text-ink tracking-[-0.3px]">{sector.name}</span>
             <span className="text-[12px] text-muted font-mono">{sector.stocks.length} 銘柄</span>
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-3 sm:gap-4">
           <div className="flex items-center gap-1.5">
             <span className="text-[11px] text-muted font-mono">平均相関</span>
             <span className="text-[13px] font-semibold font-mono tabular-nums" style={{ color: 'var(--color-pos)' }}>
@@ -176,9 +176,9 @@ function SectorDetailView({ sector, onBack, onStockSelect }: DetailViewProps) {
         </div>
       </div>
 
-      <div className="border-t border-border mx-5 shrink-0" />
+      <div className="border-t border-border mx-3 sm:mx-5 shrink-0" />
 
-      <div className="flex-1 overflow-auto flex items-start justify-center">
+      <div className="flex-1 overflow-auto flex items-start justify-start sm:justify-center">
         <Heatmap stocks={sector.stocks} matrix={sector.matrix} onStockSelect={onStockSelect} />
       </div>
     </div>
@@ -193,8 +193,8 @@ export function SectorHeatmaps({ sectors, minCorr, onStockSelect }: Props) {
   }
 
   return (
-    <div className="p-5">
-      <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
+    <div className="p-2 sm:p-5">
+      <div className="grid gap-3 sm:gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))' }}>
         {sectors.map((sector, i) => (
           <SectorCard
             key={sector.name}

@@ -1,6 +1,6 @@
 import type { CorrelationResponse, HealthResponse, SectorData } from '../../lib/api'
 import type { View } from './tabConfig'
-import type { Period } from '../../types/filter'
+import { PERIODS, type Period } from '../../types/filter'
 
 const SESSION_ESTIMATE: Record<Period, number> = {
   '1M': 21,
@@ -14,6 +14,7 @@ const SESSION_ESTIMATE: Record<Period, number> = {
 interface Props {
   view: View
   period: Period
+  onPeriodChange?: (period: Period) => void
   sectors: SectorData[]
   correlation: CorrelationResponse | null
   health: HealthResponse | null
@@ -47,7 +48,7 @@ function countZeroPairs(correlation: CorrelationResponse | null, visibleCodes: S
   return count
 }
 
-export function DataSummaryBar({ view, period, sectors, correlation, health }: Props) {
+export function DataSummaryBar({ view, period, onPeriodChange, sectors, correlation, health }: Props) {
   const visibleStocks = sectors.flatMap(sector => sector.stocks)
   const visibleCodes = new Set(visibleStocks.map(stock => stock.code))
   const zeroPairs = countZeroPairs(correlation, visibleCodes)
@@ -60,16 +61,38 @@ export function DataSummaryBar({ view, period, sectors, correlation, health }: P
       : '日次リターン相関 / キャッシュ価格'
 
   return (
-    <div className="px-2 sm:px-4 lg:px-6 pb-2">
-      <div className="border-y border-border py-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-[11px] text-muted">
-        <span className="font-mono tabular-nums">期間 <b className="text-ink">{period}</b></span>
+    <div className="px-1 sm:px-4 lg:px-6 pb-2">
+      <div className="border-y border-border py-2 flex flex-wrap items-center gap-x-3 gap-y-2 sm:gap-x-5 text-[10px] sm:text-[11px] text-muted">
+        {onPeriodChange ? (
+          <div className="min-w-0 max-w-full flex items-center gap-2 sm:gap-3">
+            <span className="font-mono">期間</span>
+            <div className="min-w-0 flex items-center gap-1 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {PERIODS.map(p => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => onPeriodChange(p)}
+                  className={`h-[24px] px-1.5 text-[11px] font-semibold transition-colors cursor-pointer tabular-nums ${
+                    period === p
+                      ? 'text-ink'
+                      : 'text-muted hover:text-ink'
+                  }`}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <span className="font-mono tabular-nums">期間 <b className="text-ink">{period}</b></span>
+        )}
         <span className="font-mono tabular-nums">目安 <b className="text-ink">{SESSION_ESTIMATE[period]}</b> 営業日</span>
         <span>対象 <b className="text-ink">{visibleStocks.length}</b> 銘柄 / <b className="text-ink">{sectors.length}</b> セクター</span>
         <span>更新 <b className="text-ink">{updatedAt}</b></span>
         <span title="相関が未計算、またはほぼ0として扱われているペアです">
           0.00扱い <b className="text-ink">{zeroPairs}</b> ペア
         </span>
-        <span className="ml-auto min-w-0 truncate" title={method}>計算: {method}</span>
+        <span className="w-full min-w-0 truncate sm:ml-auto sm:w-auto" title={method}>計算: {method}</span>
       </div>
     </div>
   )
