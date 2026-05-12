@@ -102,7 +102,7 @@ function filterPairs(pairs: TrendPair[], mode: Mode): TrendPair[] {
 
 export function TrendView({ period, sectors, minCorr, onStockSelect }: Props) {
   const [mode, setMode] = useState<Mode>('all')
-  const [threshold, setThreshold] = useState(0.15)
+  const threshold = 0.3
   const [query, setQuery] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
@@ -209,20 +209,6 @@ export function TrendView({ period, sectors, minCorr, onStockSelect }: Props) {
             value={mode}
             onChange={setMode}
           />
-          <span className="w-px h-4 bg-border shrink-0" />
-          <div className="flex items-center gap-2">
-            <span className="text-[12px] text-muted whitespace-nowrap">変化幅</span>
-            <input
-              type="range"
-              min="0.05"
-              max="0.5"
-              step="0.05"
-              value={threshold}
-              onChange={event => setThreshold(Number(event.target.value))}
-              className="min-w-[80px] w-24 accent-[var(--color-ink)]"
-            />
-            <span className="text-[12px] font-mono text-ink tabular-nums w-9">{threshold.toFixed(2)}</span>
-          </div>
           <div className="ml-auto flex items-center gap-2 shrink-0">
             <PeriodBadge label="短期" value={data.periods.short} />
             <span className="text-[12px] text-muted">vs</span>
@@ -278,8 +264,6 @@ export function TrendView({ period, sectors, minCorr, onStockSelect }: Props) {
           <StatLine label="反転" value={signFlipCount.toLocaleString('ja-JP')} />
           <span className="text-muted/40 text-[10px] select-none">·</span>
           <StatLine label="最大" value={deltaLabel(maxShift)} />
-          <span className="text-muted/40 text-[10px] select-none">·</span>
-          <StatLine label="条件" value={`±${threshold.toFixed(2)}`} />
           <span className="text-muted/40 text-[10px] select-none">·</span>
           <StatLine label="表示" value={visiblePairs.length.toLocaleString('ja-JP')} />
           <span className="text-muted/40 text-[10px] select-none">·</span>
