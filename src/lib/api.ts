@@ -144,9 +144,37 @@ export function fetchSectors(period: string): Promise<SectorData[]> {
   return staticFetch(`/sectors/${period}.json`)
 }
 
-export function fetchCorrelation(period: string): Promise<CorrelationResponse> {
+// Static export uses a compact upper-triangle form (64% smaller than the full
+// symmetric matrix). The live API still returns the full matrix, so handle both.
+interface CompactCorrelationResponse {
+  stocks: StockInfo[]
+  upper: number[]
+}
+
+function expandUpperTriangle(stocks: StockInfo[], upper: number[]): number[][] {
+  const n = stocks.length
+  const matrix: number[][] = new Array(n)
+  for (let i = 0; i < n; i++) matrix[i] = new Array(n).fill(0)
+  let k = 0
+  for (let i = 0; i < n; i++) {
+    matrix[i][i] = 1
+    for (let j = i + 1; j < n; j++) {
+      const v = upper[k++] ?? 0
+      matrix[i][j] = v
+      matrix[j][i] = v
+    }
+  }
+  return matrix
+}
+
+export async function fetchCorrelation(period: string): Promise<CorrelationResponse> {
   if (apiBase) return apiFetch(`/api/correlation?period=${period}`)
-  return staticFetch(`/correlation/${period}.json`)
+  const raw = await staticFetch<CorrelationResponse | CompactCorrelationResponse>(`/correlation/${period}.json`)
+  if ('matrix' in raw && Array.isArray(raw.matrix)) return raw
+  if ('upper' in raw && Array.isArray(raw.upper)) {
+    return { stocks: raw.stocks, matrix: expandUpperTriangle(raw.stocks, raw.upper) }
+  }
+  throw new Error('相関データの形式が不正です')
 }
 
 export async function fetchRanking(

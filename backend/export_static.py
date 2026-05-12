@@ -34,6 +34,25 @@ def write_json(path: Path, data: object) -> None:
     )
 
 
+def compact_correlation(response) -> dict:
+    """Emit the correlation matrix as an upper-triangle flat array.
+
+    The symmetric matrix would weigh 17MB per period; the upper triangle with
+    2-decimal precision lands around 6MB. The frontend reconstructs the full
+    matrix on load.
+    """
+    matrix = response.matrix
+    stocks = response.stocks
+    n = len(stocks)
+    upper: list[float] = []
+    for i in range(n):
+        row = matrix[i] if i < len(matrix) else []
+        for j in range(i + 1, n):
+            value = row[j] if j < len(row) else 0
+            upper.append(round(float(value), 2))
+    return {"stocks": jsonable_encoder(stocks), "upper": upper}
+
+
 def reset_output_dir(output_dir: Path) -> None:
     output_dir = output_dir.resolve()
     public_dir = (PROJECT_ROOT / "public").resolve()
@@ -63,7 +82,10 @@ def export_static(output_dir: Path, refresh: bool) -> None:
     for period in PERIODS:
         logging.info("exporting period %s", period)
         write_json(output_dir / "sectors" / f"{period}.json", api.get_sectors(period))
-        write_json(output_dir / "correlation" / f"{period}.json", api.get_correlation(period))
+        write_json(
+            output_dir / "correlation" / f"{period}.json",
+            compact_correlation(api.get_correlation(period)),
+        )
         write_json(output_dir / "sector-indices" / f"{period}.json", api.get_sector_indices(period))
         write_json(output_dir / "macro" / f"{period}.json", api.get_macro(period))
         write_json(output_dir / "ranking" / f"{period}.json", api.get_ranking(period, "all", 200))
@@ -72,10 +94,6 @@ def export_static(output_dir: Path, refresh: bool) -> None:
             write_json(
                 output_dir / "charts" / "stocks" / period / f"{stock['code']}.json",
                 api.get_chart(stock["code"], period),
-            )
-            write_json(
-                output_dir / "stock-correlations" / period / f"{stock['code']}.json",
-                api.get_stock_correlations(stock["code"], period),
             )
 
         for sector in SECTOR_DEFINITIONS:
