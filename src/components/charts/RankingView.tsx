@@ -231,6 +231,11 @@ export function RankingView({ sectors, correlation, minCorr, onStockSelect }: Pr
     <div className="h-full min-h-0 px-1.5 py-2 sm:px-4 sm:py-2 lg:px-6 flex flex-col gap-1.5">
       <header className="shrink-0 flex flex-col gap-1 border-b border-border/70 pb-1.5">
         <div className="flex items-center gap-2 flex-wrap">
+          <div className="shrink-0 flex flex-col justify-center mr-1">
+            <p className="text-[10px] text-muted font-mono tracking-[0.08em] uppercase leading-none">Kaburela</p>
+            <h2 className="text-[15px] font-semibold text-ink tracking-tight leading-tight">相関ランキング</h2>
+          </div>
+          <span className="w-px h-8 bg-border shrink-0" />
           <SegmentedSwitch
             options={[
               { id: 'all', label: 'すべて' },

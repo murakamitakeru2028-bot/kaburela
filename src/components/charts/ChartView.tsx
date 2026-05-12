@@ -5,12 +5,12 @@ import { corrToFill, corrToTextFill } from '../../lib/colorUtils'
 import type { ChartData, CorrelationResponse, SectorData } from '../../lib/api'
 import type { StockInfo } from '../../types/stock'
 import { PERIODS, type Period } from '../../types/filter'
+import { StockCorrelationView } from './StockCorrelationView'
 
 const COLORS = ['#3b82f6', '#ec4899', '#f97316', '#10b981', '#8b5cf6']
 const MAX_STOCKS = 5
 const FALLBACK_SUGGESTIONS = ['7203', '6758', '8035', '9432', '8306']
 const SECTOR_CODE_PREFIX = 'sector:'
-type ChartDisplayMode = 'price' | 'return'
 
 function isSectorIndexCode(code: string): boolean {
   return code.startsWith(SECTOR_CODE_PREFIX)
@@ -41,17 +41,6 @@ function calcCorr(closesA: number[], closesB: number[]): number {
   return sa && sb ? parseFloat((cov / (sa * sb)).toFixed(2)) : 0
 }
 
-const PERFORMANCE_WINDOWS = [
-  { label: '前日比', sessions: 1 },
-  { label: '1週間', sessions: 5 },
-  { label: '1カ月', sessions: 21 },
-  { label: '3カ月', sessions: 63 },
-  { label: '6カ月', sessions: 126 },
-  { label: '1年', sessions: 252 },
-  { label: '3年', sessions: 756 },
-  { label: '5年', sessions: 1260 },
-  { label: '取得来', sessions: null },
-] as const
 
 const EXTREME_WINDOWS = [
   { label: '1カ月', sessions: 21 },
@@ -100,13 +89,6 @@ function formatDiff(value: number | null, isIndex: boolean): string {
   return `${value >= 0 ? '+' : '-'}${abs}${isIndex ? ' pt' : '円'}`
 }
 
-function periodReturn(data: ChartData, sessions: number | null): number | null {
-  if (data.closes.length < 2) return null
-  const end = data.closes.length - 1
-  const start = sessions == null ? 0 : end - sessions
-  if (start < 0) return null
-  return pctChange(data.closes[start], data.closes[end])
-}
 
 function calcRecentRows(data: ChartData, isIndex: boolean) {
   return data.closes
@@ -181,29 +163,13 @@ function formatAxisValue(value: number): string {
   return value.toFixed(2)
 }
 
-function toReturnSeries(closes: number[]): number[] {
-  const base = closes[0]
-  if (!Number.isFinite(base) || base === 0) return closes.map(() => 0)
-  return closes.map(value => ((value / base) - 1) * 100)
-}
-
-function formatChartPoint(value: number, isIndex: boolean, mode: ChartDisplayMode): string {
-  return mode === 'return' ? formatPct(value, 1) : formatValue(value, isIndex)
-}
-
-function formatChartAxis(value: number, mode: ChartDisplayMode): string {
-  if (mode === 'price') return formatAxisValue(value)
-  const digits = Math.abs(value) < 10 ? 1 : 0
-  return `${value > 0 ? '+' : ''}${value.toFixed(digits)}%`
-}
 
 interface LineChartProps {
   selectedStocks: StockInfo[]
   chartData: Map<string, ChartData>
-  displayMode: ChartDisplayMode
 }
 
-function LineChart({ selectedStocks, chartData, displayMode }: LineChartProps) {
+function LineChart({ selectedStocks, chartData }: LineChartProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(600)
   const [hoverX, setHoverX] = useState<number | null>(null)
@@ -231,19 +197,19 @@ function LineChart({ selectedStocks, chartData, displayMode }: LineChartProps) {
         return {
           stock,
           color: COLORS[idx % COLORS.length],
-          values: displayMode === 'return' ? toReturnSeries(data.closes) : data.closes,
+          values: data.closes,
           dates: data.dates,
           isIndex: isSectorIndexCode(stock.code),
         }
       })
       .filter((s): s is NonNullable<typeof s> => s !== null),
-  [selectedStocks, chartData, displayMode])
+  [selectedStocks, chartData])
 
   const allValues = series.flatMap(s => s.values)
   const rawMin = allValues.length ? Math.min(...allValues) : 0
   const rawMax = allValues.length ? Math.max(...allValues) : 100
   const pad = Math.max((rawMax - rawMin) * 0.08, rawMax * 0.01, 1)
-  const minY = displayMode === 'price' ? Math.max(0, rawMin - pad) : rawMin - pad
+  const minY = Math.max(0, rawMin - pad)
   const maxY = rawMax + pad
 
   const maxLen = Math.max(...series.map(s => s.values.length), 2)
@@ -296,7 +262,7 @@ function LineChart({ selectedStocks, chartData, displayMode }: LineChartProps) {
                 fill="var(--color-muted)"
                 fontFamily="DM Mono, monospace"
               >
-                {formatChartAxis(v, displayMode)}
+                {formatAxisValue(v)}
               </text>
             </g>
           ))}
@@ -386,7 +352,7 @@ function LineChart({ selectedStocks, chartData, displayMode }: LineChartProps) {
               <span key={s.stock.code} className="flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
                 <span className="font-semibold text-ink">
-                  {formatChartPoint(v, s.isIndex, displayMode)}
+                  {formatValue(v, s.isIndex)}
                 </span>
               </span>
             )
@@ -473,10 +439,6 @@ function ChartDetails({ stocks, activeStock, data, activeCode, onActiveCodeChang
   const highIdx = data.closes.reduce((best, value, idx) => value > data.closes[best] ? idx : best, 0)
   const lowIdx = data.closes.reduce((best, value, idx) => value < data.closes[best] ? idx : best, 0)
   const recentRows = calcRecentRows(data, isIndex)
-  const performance = PERFORMANCE_WINDOWS.map(item => ({
-    label: item.label,
-    value: periodReturn(data, item.sessions),
-  }))
   const extremes = EXTREME_WINDOWS.map(item => ({
     label: item.label,
     extreme: calcExtremeMove(data, item.sessions),
@@ -625,30 +587,6 @@ function ChartDetails({ stocks, activeStock, data, activeCode, onActiveCodeChang
         </div>
       </section>
 
-      <section>
-        <div className="flex items-center gap-2 mb-3">
-          <span className="w-1.5 h-5 rounded-full bg-[#2563eb]" />
-          <h3 className="text-[13px] font-semibold text-ink">騰落率</h3>
-        </div>
-        <div className="overflow-auto">
-          <table className="w-full min-w-[760px] border-collapse text-[12px]">
-            <tbody>
-              <tr className="border-b border-border">
-                <th className="text-left text-muted font-semibold py-2 pr-3">期間</th>
-                {performance.map(item => <td key={item.label} className="text-right py-2 pl-3 font-semibold">{item.label}</td>)}
-              </tr>
-              <tr className="border-b border-border">
-                <th className="text-left text-muted font-semibold py-2 pr-3">騰落率</th>
-                {performance.map(item => (
-                  <td key={item.label} className="text-right py-2 pl-3 font-mono font-semibold" style={{ color: valueColor(item.value) }}>
-                    {formatPct(item.value)}
-                  </td>
-                ))}
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
     </div>
   )
 }
@@ -767,7 +705,7 @@ export function ChartView({ period, onPeriodChange, initialStock, sectors, corre
   const [sectorPanelOpen, setSectorPanelOpen] = useState(false)
   const [detailCode, setDetailCode] = useState<string | null>(null)
   const [detailData, setDetailData] = useState<Map<string, ChartData>>(new Map())
-  const [displayMode, setDisplayMode] = useState<ChartDisplayMode>('price')
+  const [corrOpen, setCorrOpen] = useState(false)
 
   const inputRef = useRef<HTMLInputElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -1059,6 +997,7 @@ export function ChartView({ period, onPeriodChange, initialStock, sectors, corre
 
             {sectors && sectors.length > 0 && (
               <button
+                type="button"
                 onClick={() => setSectorPanelOpen(v => !v)}
                 className="h-10 px-3 sm:px-4 rounded-full bg-subtle text-[13px] font-semibold text-muted hover:text-ink transition-colors cursor-pointer shrink-0"
               >
@@ -1107,9 +1046,6 @@ export function ChartView({ period, onPeriodChange, initialStock, sectors, corre
             const isLoading = loadingCodes.has(stock.code)
             const hasError = errorCodes.has(stock.code)
             const latestValue = data?.closes.at(-1) ?? null
-            const latestReturn = data && data.closes.length > 0
-              ? pctChange(data.closes[0], data.closes[data.closes.length - 1])
-              : null
             const isIndex = isSectorIndexCode(stock.code)
 
             return (
@@ -1123,11 +1059,8 @@ export function ChartView({ period, onPeriodChange, initialStock, sectors, corre
                 {isLoading && <span className="text-muted text-[10px]">読込中...</span>}
                 {hasError && <span className="text-[10px]" style={{ color: 'var(--color-neg)' }}>取得失敗</span>}
                 {latestValue != null && !isLoading && !hasError && (
-                  <span
-                    className="tabular-nums"
-                    style={{ color: displayMode === 'return' ? valueColor(latestReturn) : 'var(--color-muted)' }}
-                  >
-                    {displayMode === 'return' ? formatPct(latestReturn, 1) : formatValue(latestValue, isIndex)}
+                  <span className="tabular-nums" style={{ color: 'var(--color-muted)' }}>
+                    {formatValue(latestValue, isIndex)}
                   </span>
                 )}
                 <button
@@ -1173,44 +1106,24 @@ export function ChartView({ period, onPeriodChange, initialStock, sectors, corre
 
             <div className="px-1 pb-3 flex items-start sm:items-center justify-between gap-3 flex-wrap">
               <span className="text-[11px] text-muted font-mono">表示期間</span>
-              <div className="min-w-0 flex items-center gap-2 flex-wrap justify-start sm:justify-end">
-                <div className="flex items-center bg-subtle rounded-full p-[3px] gap-[2px]">
-                  {(['price', 'return'] as ChartDisplayMode[]).map(mode => (
-                    <button
-                      key={mode}
-                      type="button"
-                      onClick={() => setDisplayMode(mode)}
-                      className={`h-[30px] px-3 rounded-full text-[12px] font-semibold transition-all cursor-pointer ${
-                        displayMode === mode
-                          ? 'bg-paper text-ink shadow-[0_1px_3px_rgba(0,0,0,0.12)]'
-                          : 'text-muted hover:text-ink'
-                      }`}
-                    >
-                      {mode === 'price' ? '価格' : '騰落率'}
-                    </button>
-                  ))}
-                </div>
-                <div className="flex items-center gap-1">
-                  {PERIODS.map(p => (
-                    <button
-                      key={p}
-                      type="button"
-                      onClick={() => onPeriodChange(p)}
-                      className={`h-[30px] px-2 text-[12px] font-semibold transition-colors cursor-pointer tabular-nums ${
-                        period === p
-                          ? 'text-ink'
-                          : 'text-muted hover:text-ink'
-                      }`}
-                    >
-                      {p}
-                    </button>
-                  ))}
-                </div>
+              <div className="flex items-center gap-1">
+                {PERIODS.map(p => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => onPeriodChange(p)}
+                    className={`h-[30px] px-2 text-[12px] font-semibold transition-colors cursor-pointer tabular-nums ${
+                      period === p ? 'text-ink' : 'text-muted hover:text-ink'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
               </div>
             </div>
 
             <div className="py-2">
-              <LineChart selectedStocks={loadedStocks} chartData={chartData} displayMode={displayMode} />
+              <LineChart selectedStocks={loadedStocks} chartData={chartData} />
             </div>
           </section>
 
@@ -1224,6 +1137,43 @@ export function ChartView({ period, onPeriodChange, initialStock, sectors, corre
                 activeCode={detailCode}
                 onActiveCodeChange={setDetailCode}
               />
+            )}
+          </section>
+
+          <section className="pt-4 border-t border-border">
+            <button
+              type="button"
+              onClick={() => setCorrOpen(v => !v)}
+              className="flex items-center gap-2 text-[13px] font-semibold text-ink hover:text-muted transition-colors cursor-pointer"
+            >
+              <span className="w-1.5 h-5 rounded-full bg-[#2563eb]" />
+              銘柄相関
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 12 12"
+                fill="none"
+                aria-hidden
+                className="text-muted transition-transform"
+                style={{ transform: corrOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+              >
+                <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+            <p className="text-[11px] text-muted mt-1 ml-[18px]">
+              {selectedStocks[0]?.label ?? ''} と相関・逆相関の強い銘柄を確認できます
+            </p>
+            {corrOpen && (
+              <div className="mt-3 h-[540px] border border-border rounded-xl overflow-hidden">
+                <StockCorrelationView
+                  key={selectedStocks[0]?.code ?? 'none'}
+                  period={period}
+                  onPeriodChange={onPeriodChange}
+                  sectors={sectors ?? []}
+                  onStockSelect={addStock}
+                  initialStock={selectedStocks[0] ?? null}
+                />
+              </div>
             )}
           </section>
         </>

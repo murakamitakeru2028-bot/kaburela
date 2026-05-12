@@ -140,6 +140,7 @@ export function Header({ currentView, onViewChange, onSearchSelect }: HeaderProp
         <div className="ml-auto flex items-center gap-1 sm:gap-2 shrink-0">
           <div className="relative" ref={searchPanelRef}>
             <button
+              type="button"
               onClick={() => setSearchOpen(v => !v)}
               aria-label="銘柄を検索"
               title="銘柄を検索"
@@ -175,6 +176,7 @@ export function Header({ currentView, onViewChange, onSearchSelect }: HeaderProp
                   />
                   {searchQuery && (
                     <button
+                      type="button"
                       onClick={() => updateSearchQuery('')}
                       className="text-muted hover:text-ink cursor-pointer shrink-0"
                       aria-label="検索語をクリア"
@@ -191,6 +193,7 @@ export function Header({ currentView, onViewChange, onSearchSelect }: HeaderProp
                     {searchResults.map(stock => (
                       <button
                         key={stock.code}
+                        type="button"
                         onClick={() => {
                           onSearchSelect(stock)
                           closeSearch()
@@ -217,6 +220,7 @@ export function Header({ currentView, onViewChange, onSearchSelect }: HeaderProp
           </div>
 
           <button
+            type="button"
             onClick={toggle}
             aria-label={themeLabel}
             title={themeLabel}

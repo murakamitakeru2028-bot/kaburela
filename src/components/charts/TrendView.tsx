@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { cn } from '../../lib/cn'
 import { fetchCorrelation, type CorrelationResponse, type SectorData } from '../../lib/api'
 import type { Period } from '../../types/filter'
@@ -49,12 +49,6 @@ function deltaColor(value: number): string {
   return 'var(--color-muted)'
 }
 
-function modeLabel(mode: Mode): string {
-  if (mode === 'stronger') return '強まった'
-  if (mode === 'weaker') return '弱まった'
-  if (mode === 'flip') return '符号反転'
-  return 'すべて'
-}
 
 function signFlip(shortCorr: number, longCorr: number): boolean {
   return Math.sign(shortCorr) !== Math.sign(longCorr) && Math.abs(shortCorr) >= 0.2 && Math.abs(longCorr) >= 0.2
@@ -110,6 +104,8 @@ export function TrendView({ period, sectors, minCorr, onStockSelect }: Props) {
   const [mode, setMode] = useState<Mode>('all')
   const [threshold, setThreshold] = useState(0.15)
   const [query, setQuery] = useState('')
+  const [searchOpen, setSearchOpen] = useState(false)
+  const searchRef = useRef<HTMLInputElement>(null)
   const [data, setData] = useState<{
     periods: TrendPeriods
     shortData: CorrelationResponse
@@ -118,6 +114,16 @@ export function TrendView({ period, sectors, minCorr, onStockSelect }: Props) {
   const [error, setError] = useState<{ periods: TrendPeriods; message: string } | null>(null)
 
   const trendPeriods = PERIOD_PAIR[period]
+
+  function openSearch() {
+    setSearchOpen(true)
+    requestAnimationFrame(() => searchRef.current?.focus())
+  }
+
+  function closeSearch() {
+    setSearchOpen(false)
+    setQuery('')
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -186,83 +192,102 @@ export function TrendView({ period, sectors, minCorr, onStockSelect }: Props) {
 
   return (
     <div className="h-full min-h-0 px-1.5 py-2 sm:px-4 sm:py-3 lg:px-6 flex flex-col gap-2">
-      <header className="shrink-0 grid gap-1.5 border-b border-border/70 pb-1.5">
-        <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div className="min-w-0">
-          <p className="text-[11px] text-muted font-mono tracking-[0.12em] uppercase">Trend</p>
-          <h2 className="mt-0.5 text-[18px] sm:text-[20px] font-semibold text-ink tracking-[-0.35px]">相関トレンド</h2>
-        </div>
-
-        <div className="flex items-center gap-2 flex-wrap justify-start sm:justify-end">
-          <PeriodBadge label="短期" value={data.periods.short} />
-          <span className="text-[12px] text-muted">vs</span>
-          <PeriodBadge label="基準" value={data.periods.long} />
-        </div>
-      </div>
-
-        <div className="grid min-w-0 gap-2 min-[980px]:grid-cols-[minmax(220px,1fr)_auto_minmax(230px,0.55fr)]">
-        <label className="h-9 rounded-full bg-paper border border-border px-3.5 flex items-center gap-2">
-          <svg width="14" height="14" viewBox="0 0 15 15" fill="none" className="text-muted shrink-0" aria-hidden>
-            <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" strokeWidth="1.5" />
-            <path d="M10.5 10.5L13.5 13.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
-          <input
-            value={query}
-            onChange={event => setQuery(event.target.value)}
-            placeholder="銘柄名・コードで検索"
-            className="min-w-0 flex-1 bg-transparent outline-none text-[13px] text-ink placeholder:text-muted"
+      <header className="shrink-0 flex flex-col gap-1 border-b border-border/70 pb-1.5">
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="shrink-0 flex flex-col justify-center mr-1">
+            <p className="text-[10px] text-muted font-mono tracking-[0.08em] uppercase leading-none">Kaburela</p>
+            <h2 className="text-[15px] font-semibold text-ink tracking-tight leading-tight">相関トレンド</h2>
+          </div>
+          <span className="w-px h-8 bg-border shrink-0" />
+          <SegmentedSwitch
+            options={[
+              { id: 'all', label: 'すべて' },
+              { id: 'stronger', label: '強まった' },
+              { id: 'weaker', label: '弱まった' },
+              { id: 'flip', label: '反転' },
+            ]}
+            value={mode}
+            onChange={setMode}
           />
-        </label>
-
-        <SegmentedSwitch
-          options={[
-            { id: 'all', label: 'すべて' },
-            { id: 'stronger', label: '強まった' },
-            { id: 'weaker', label: '弱まった' },
-            { id: 'flip', label: '反転' },
-          ]}
-          value={mode}
-          onChange={setMode}
-        />
-
-        <div className="min-w-0 h-9 rounded-full bg-paper border border-border px-3 sm:px-3.5 flex items-center gap-2 sm:gap-3">
-          <span className="text-[11px] text-muted whitespace-nowrap">変化幅</span>
-          <input
-            type="range"
-            min="0.05"
-            max="0.5"
-            step="0.05"
-            value={threshold}
-            onChange={event => setThreshold(Number(event.target.value))}
-            className="min-w-[92px] flex-1 sm:w-28 accent-[var(--color-ink)]"
-          />
-          <span className="text-[12px] font-mono text-ink tabular-nums w-9">{threshold.toFixed(2)}</span>
+          <span className="w-px h-4 bg-border shrink-0" />
+          <div className="flex items-center gap-2">
+            <span className="text-[12px] text-muted whitespace-nowrap">変化幅</span>
+            <input
+              type="range"
+              min="0.05"
+              max="0.5"
+              step="0.05"
+              value={threshold}
+              onChange={event => setThreshold(Number(event.target.value))}
+              className="min-w-[80px] w-24 accent-[var(--color-ink)]"
+            />
+            <span className="text-[12px] font-mono text-ink tabular-nums w-9">{threshold.toFixed(2)}</span>
+          </div>
+          <div className="ml-auto flex items-center gap-2 shrink-0">
+            <PeriodBadge label="短期" value={data.periods.short} />
+            <span className="text-[12px] text-muted">vs</span>
+            <PeriodBadge label="基準" value={data.periods.long} />
+            {searchOpen ? (
+              <label className="h-8 rounded-full bg-paper border border-border px-3 flex items-center gap-1.5 w-[180px] sm:w-[220px]">
+                <svg width="12" height="12" viewBox="0 0 15 15" fill="none" className="text-muted shrink-0" aria-hidden>
+                  <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" strokeWidth="1.5" />
+                  <path d="M10.5 10.5L13.5 13.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+                <input
+                  ref={searchRef}
+                  value={query}
+                  onChange={event => setQuery(event.target.value)}
+                  placeholder="銘柄名・コードで検索"
+                  className="min-w-0 flex-1 bg-transparent outline-none text-[12px] text-ink placeholder:text-muted"
+                />
+                <button
+                  type="button"
+                  onClick={closeSearch}
+                  className="text-muted hover:text-ink cursor-pointer shrink-0 p-0.5"
+                  aria-label="検索を閉じる"
+                >
+                  <svg width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden>
+                    <path d="M1 1L11 11M11 1L1 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
+                </button>
+              </label>
+            ) : (
+              <button
+                type="button"
+                onClick={openSearch}
+                className={cn(
+                  'h-8 w-8 rounded-full flex items-center justify-center cursor-pointer transition-colors',
+                  query ? 'bg-subtle text-ink' : 'text-muted hover:bg-subtle hover:text-ink',
+                )}
+                aria-label="検索"
+              >
+                <svg width="14" height="14" viewBox="0 0 15 15" fill="none" aria-hidden>
+                  <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" strokeWidth="1.5" />
+                  <path d="M10.5 10.5L13.5 13.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+              </button>
+            )}
+          </div>
         </div>
-        </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <CompactMetric label="強化" value={strongerCount.toLocaleString('ja-JP')} tone="pos" />
-          <CompactMetric label="弱化" value={weakerCount.toLocaleString('ja-JP')} tone="neg" />
-          <CompactMetric label="反転" value={signFlipCount.toLocaleString('ja-JP')} />
-          <CompactMetric label="最大" value={deltaLabel(maxShift)} tone={maxShift >= 0 ? 'pos' : 'neg'} />
-          <CompactMetric label="条件" value={`±${threshold.toFixed(2)}`} />
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <StatLine label="強化" value={strongerCount.toLocaleString('ja-JP')} />
+          <span className="text-muted/40 text-[10px] select-none">·</span>
+          <StatLine label="弱化" value={weakerCount.toLocaleString('ja-JP')} />
+          <span className="text-muted/40 text-[10px] select-none">·</span>
+          <StatLine label="反転" value={signFlipCount.toLocaleString('ja-JP')} />
+          <span className="text-muted/40 text-[10px] select-none">·</span>
+          <StatLine label="最大" value={deltaLabel(maxShift)} />
+          <span className="text-muted/40 text-[10px] select-none">·</span>
+          <StatLine label="条件" value={`±${threshold.toFixed(2)}`} />
+          <span className="text-muted/40 text-[10px] select-none">·</span>
+          <StatLine label="表示" value={visiblePairs.length.toLocaleString('ja-JP')} />
+          <span className="text-muted/40 text-[10px] select-none">·</span>
+          <StatLine label="候補" value={filterPairs(allPairs, mode).length.toLocaleString('ja-JP')} />
         </div>
       </header>
 
       <section className="min-h-0 flex-1 overflow-hidden flex flex-col">
-        <div className="px-1 pb-2 flex flex-wrap items-end justify-between gap-3 sm:gap-4 shrink-0">
-          <div className="min-w-0">
-            <p className="text-[10px] text-muted font-mono tracking-[0.14em] uppercase">Pair Monitor</p>
-            <h3 className="text-[15px] font-semibold text-ink">{modeLabel(mode)}ペア</h3>
-            <p className="text-[11px] text-muted mt-0.5">
-              {data.periods.long} から {data.periods.short} への相関変化を大きい順に表示
-            </p>
-          </div>
-          <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-            <StatusPill label="表示" value={visiblePairs.length.toLocaleString('ja-JP')} />
-            <StatusPill label="候補" value={filterPairs(allPairs, mode).length.toLocaleString('ja-JP')} />
-          </div>
-        </div>
 
         <div className="hidden lg:grid grid-cols-[56px_minmax(0,1fr)_100px_100px_160px_92px] gap-3 px-1 py-2.5 border-y border-border/70 text-[10px] text-muted font-mono tracking-[0.08em] uppercase shrink-0">
           <span>Rank</span>
@@ -296,31 +321,22 @@ export function TrendView({ period, sectors, minCorr, onStockSelect }: Props) {
 
 function PeriodBadge({ label, value }: { label: string; value: Period }) {
   return (
-    <div className="h-9 px-3.5 rounded-full bg-paper border border-border flex items-center gap-2">
+    <span className="flex items-center gap-1.5">
       <span className="text-[10px] text-muted font-mono uppercase tracking-[0.08em]">{label}</span>
-      <span className="text-[13px] font-semibold text-ink tabular-nums">{value}</span>
-    </div>
+      <span className="text-[12px] font-semibold font-mono tabular-nums text-ink">{value}</span>
+    </span>
   )
 }
 
-function CompactMetric({ label, value, tone }: { label: string; value: string; tone?: 'pos' | 'neg' }) {
-  const color = tone === 'pos' ? 'var(--color-pos)' : tone === 'neg' ? 'var(--color-neg)' : 'var(--color-ink)'
+function StatLine({ label, value }: { label: string; value: string }) {
   return (
-    <div className="h-7 px-2.5 rounded-full bg-paper border border-border flex items-center gap-1.5">
+    <span className="flex items-center gap-1.5">
       <span className="text-[10px] text-muted font-mono tracking-[0.08em] uppercase">{label}</span>
-      <span className="text-[12px] font-semibold font-mono tabular-nums" style={{ color }}>{value}</span>
-    </div>
+      <span className="text-[12px] font-semibold font-mono tabular-nums text-ink">{value}</span>
+    </span>
   )
 }
 
-function StatusPill({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="h-8 px-3 rounded-full bg-subtle flex items-center gap-2">
-      <span className="text-[10px] text-muted font-mono tracking-[0.08em] uppercase">{label}</span>
-      <span className="text-[12px] text-ink font-semibold font-mono tabular-nums">{value}</span>
-    </div>
-  )
-}
 
 function SegmentedSwitch<T extends string>({
   options,
@@ -332,17 +348,17 @@ function SegmentedSwitch<T extends string>({
   onChange: (value: T) => void
 }) {
   return (
-    <div className="max-w-full h-9 flex items-center bg-subtle rounded-full p-1 gap-1 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div className="flex items-center gap-0.5 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {options.map(option => (
         <button
           key={option.id}
           type="button"
           onClick={() => onChange(option.id)}
           className={cn(
-            'h-7 px-3 sm:px-3.5 rounded-full text-[12px] font-semibold transition-all cursor-pointer whitespace-nowrap',
+            'h-7 px-2.5 text-[12px] font-medium transition-all cursor-pointer whitespace-nowrap border-b-2',
             value === option.id
-              ? 'bg-paper text-ink shadow-[0_1px_4px_rgba(0,0,0,0.12)]'
-              : 'text-muted hover:text-ink',
+              ? 'border-ink text-ink'
+              : 'border-transparent text-muted hover:text-ink/70',
           )}
         >
           {option.label}

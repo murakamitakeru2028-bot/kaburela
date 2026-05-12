@@ -51,7 +51,7 @@ function countZeroPairs(correlation: CorrelationResponse | null, visibleCodes: S
 export function DataSummaryBar({ view, period, sectors, correlation, health }: Props) {
   const visibleStocks = useMemo(() => sectors.flatMap(sector => sector.stocks), [sectors])
   const visibleCodes = useMemo(() => new Set(visibleStocks.map(stock => stock.code)), [visibleStocks])
-  const hideZeroPairs = view === 'macro' || view === 'stockcorr'
+  const hideZeroPairs = view === 'macro'
   const zeroPairs = useMemo(
     () => hideZeroPairs ? 0 : countZeroPairs(correlation, visibleCodes),
     [hideZeroPairs, correlation, visibleCodes],
@@ -62,9 +62,7 @@ export function DataSummaryBar({ view, period, sectors, correlation, health }: P
     ? '価格: キャッシュ終値 / 指数: 等ウェイト'
     : view === 'macro'
       ? 'マクロ指標 × 銘柄 日次リターン相関'
-      : view === 'stockcorr'
-        ? '選択銘柄 × プライム全銘柄 日次リターン相関（事前計算）'
-        : '日次リターン相関 / キャッシュ価格'
+      : '日次リターン相関 / キャッシュ価格'
 
   return (
     <div className="px-1 sm:px-4 lg:px-6 pb-2">

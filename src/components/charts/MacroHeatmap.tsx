@@ -254,49 +254,50 @@ export function MacroHeatmap({ data, sectors, onStockSelect }: Props) {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex flex-wrap items-start justify-between gap-4 px-3 pt-3 pb-3 sm:px-5 sm:pt-4 shrink-0">
-        <div className="min-w-0">
-          <h2 className="text-[15px] font-semibold text-ink tracking-[-0.3px]">マクロ指標別 上位銘柄</h2>
-          <p className="text-[11px] text-muted mt-0.5">為替、株価指数、商品、半導体などを切り替えて確認</p>
+      <header className="shrink-0 flex flex-col gap-1 border-b border-border/70 px-3 py-2 sm:px-5 pb-1.5">
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="shrink-0 flex flex-col justify-center mr-1">
+            <p className="text-[10px] text-muted font-mono tracking-[0.08em] uppercase leading-none">Kaburela</p>
+            <h2 className="text-[15px] font-semibold text-ink tracking-tight leading-tight">マクロ相関</h2>
+          </div>
+          <span className="w-px h-8 bg-border shrink-0" />
+          <div className="flex flex-wrap items-center gap-0.5">
+            {MACRO_CATEGORIES.map(category => {
+              const count = categoryCounts.get(category.key) ?? 0
+              const selected = activeCategory === category.key
+              return (
+                <button
+                  key={category.key}
+                  type="button"
+                  onClick={() => setActiveCategory(category.key)}
+                  disabled={count === 0}
+                  aria-pressed={selected}
+                  className={`h-7 px-2.5 text-[12px] font-medium whitespace-nowrap transition-all cursor-pointer border-b-2 disabled:opacity-40 ${
+                    selected
+                      ? 'border-ink text-ink'
+                      : 'border-transparent text-muted hover:text-ink/70'
+                  }`}
+                >
+                  {category.label}
+                  <span className="ml-1 font-mono text-[10px] tabular-nums opacity-60">{count}</span>
+                </button>
+              )
+            })}
+          </div>
+          <div className="ml-auto flex items-center gap-2 shrink-0">
+            <span className="text-[10px] font-mono tabular-nums" style={{ color: 'var(--color-neg)' }}>逆相関</span>
+            <div
+              className="w-16 sm:w-20 h-[5px] rounded-full"
+              style={{
+                background: `linear-gradient(to right, var(--color-neg) 0%, ${isDark ? '#2c2c2e' : '#f0f0f0'} 50%, var(--color-pos) 100%)`,
+              }}
+            />
+            <span className="text-[10px] font-mono tabular-nums" style={{ color: 'var(--color-pos)' }}>正相関</span>
+          </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0 min-w-0">
-          <span className="text-[10px] font-mono tabular-nums" style={{ color: 'var(--color-neg)' }}>逆相関</span>
-          <div
-            className="w-20 sm:w-24 h-[6px] rounded-full"
-            style={{
-              background: `linear-gradient(to right, var(--color-neg) 0%, ${isDark ? '#2c2c2e' : '#f0f0f0'} 50%, var(--color-pos) 100%)`,
-            }}
-          />
-          <span className="text-[10px] font-mono tabular-nums" style={{ color: 'var(--color-pos)' }}>正相関</span>
-        </div>
-      </div>
-
-      <div className="border-t border-border mx-3 sm:mx-5 shrink-0" />
+      </header>
 
       <div className="flex-1 overflow-auto px-3 py-3 sm:px-5 sm:py-4">
-        <div className="flex flex-wrap items-center gap-2 pb-4">
-          {MACRO_CATEGORIES.map(category => {
-            const count = categoryCounts.get(category.key) ?? 0
-            const selected = activeCategory === category.key
-            return (
-              <button
-                key={category.key}
-                type="button"
-                onClick={() => setActiveCategory(category.key)}
-                disabled={count === 0}
-                aria-pressed={selected}
-                className={`h-8 rounded-[8px] border px-3 text-[12px] font-semibold whitespace-nowrap transition-colors ${
-                  selected
-                    ? 'border-ink bg-ink text-paper'
-                    : 'border-border text-muted hover:text-ink hover:bg-subtle disabled:opacity-40 disabled:hover:bg-transparent'
-                }`}
-              >
-                {category.label}
-                <span className="ml-1.5 font-mono text-[10px] tabular-nums">{count}</span>
-              </button>
-            )
-          })}
-        </div>
 
         <div className="grid gap-4 pb-2 [grid-template-columns:minmax(0,1fr)] lg:[grid-template-columns:190px_minmax(0,1fr)]">
           <span className="text-[11px] text-muted font-mono">指標</span>

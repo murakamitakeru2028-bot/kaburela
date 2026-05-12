@@ -401,6 +401,7 @@ function SectorDetailView({ sector, sectors, onBack, onStockSelect }: DetailView
       <div className="shrink-0 border-b border-border">
         <div className="flex items-center gap-2.5 px-4 py-2">
           <button
+            type="button"
             onClick={onBack}
             className="flex items-center gap-1.5 text-muted hover:text-ink transition-colors cursor-pointer text-[13px]"
           >
@@ -453,18 +454,26 @@ export function SectorHeatmaps({ sectors, minCorr, onStockSelect }: Props) {
   }
 
   return (
-    <div className="p-2 sm:p-4">
-      <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-6">
-        {sectors.map((sector, i) => (
-          <SectorCard
-            key={sector.name}
-            sector={sector}
-            minCorr={minCorr}
-            index={i}
-            onClick={() => setSelected(sector)}
-            onStockSelect={onStockSelect}
-          />
-        ))}
+    <div className="h-full min-h-0 flex flex-col">
+      <header className="shrink-0 flex items-center gap-2 px-1.5 py-2 sm:px-4 lg:px-6 border-b border-border/70">
+        <div className="shrink-0 flex flex-col justify-center">
+          <p className="text-[10px] text-muted font-mono tracking-[0.08em] uppercase leading-none">Kaburela</p>
+          <h2 className="text-[15px] font-semibold text-ink tracking-tight leading-tight">ヒートマップ</h2>
+        </div>
+      </header>
+      <div className="flex-1 overflow-auto p-2 sm:p-4">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-6">
+          {sectors.map((sector, i) => (
+            <SectorCard
+              key={sector.name}
+              sector={sector}
+              minCorr={minCorr}
+              index={i}
+              onClick={() => setSelected(sector)}
+              onStockSelect={onStockSelect}
+            />
+          ))}
+        </div>
       </div>
     </div>
   )
