@@ -10,10 +10,10 @@ interface Props {
   enterDelay?: number
 }
 
-const GAP = 3
-const LABEL_W = 56
+const GAP = 2
+const LABEL_W = 44
 const LABEL_H = 22
-const CELL_R = 5
+const CELL_R = 4
 
 export function MiniHeatmap({ stocks, matrix, minCorr, enterDelay = 0 }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -31,7 +31,7 @@ export function MiniHeatmap({ stocks, matrix, minCorr, enterDelay = 0 }: Props) 
 
   const N = stocks.length
   const CELL = containerW > 0
-    ? Math.max(24, Math.floor((containerW - LABEL_W - 16 - GAP * (N - 1)) / N))
+    ? Math.max(18, Math.floor((containerW - LABEL_W - 16 - GAP * (N - 1)) / N))
     : 40
   const svgW = LABEL_W + N * CELL + GAP * (N - 1)
   const svgH = LABEL_H + N * CELL + GAP * (N - 1)

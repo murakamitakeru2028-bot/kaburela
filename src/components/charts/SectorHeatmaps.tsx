@@ -220,8 +220,8 @@ function SectorCard({ sector, minCorr, index, onClick, onStockSelect }: SectorCa
 
       <div className="px-3 pb-3 sm:px-4">
         <MiniHeatmap
-          stocks={sector.stocks}
-          matrix={sector.matrix}
+          stocks={sector.stocks.slice(0, 5)}
+          matrix={sector.matrix.slice(0, 5).map(row => row.slice(0, 5))}
           minCorr={minCorr}
           enterDelay={index * 65 + 120}
         />
@@ -424,10 +424,10 @@ function SectorDetailView({ sector, sectors, onBack, onStockSelect }: DetailView
         </div>
       </div>
 
-      {/* 情報パネル + ヒートマップ (中央寄せ) */}
+      {/* 情報パネル + ヒートマップ */}
       <div className="min-h-0 flex-1 overflow-auto">
-        <div className="flex items-start justify-center gap-6 p-4 sm:p-6">
-          <div className="hidden md:flex flex-col gap-4 w-[200px] lg:w-[220px] shrink-0 pt-1">
+        <div className="flex flex-col md:flex-row items-start md:justify-center gap-4 sm:gap-6 p-3 sm:p-6">
+          <div className="order-last md:order-none flex flex-col gap-4 w-full md:w-[200px] lg:w-[220px] md:shrink-0 md:pt-1">
             <DetailInfoPanel
               sector={sector}
               sectors={sectors}
@@ -436,7 +436,9 @@ function SectorDetailView({ sector, sectors, onBack, onStockSelect }: DetailView
               onStockSelect={onStockSelect}
             />
           </div>
-          <Heatmap stocks={sector.stocks} matrix={sector.matrix} onStockSelect={onStockSelect} />
+          <div className="min-w-0 w-full overflow-x-auto">
+            <Heatmap stocks={sector.stocks} matrix={sector.matrix} onStockSelect={onStockSelect} />
+          </div>
         </div>
       </div>
     </div>
@@ -451,8 +453,8 @@ export function SectorHeatmaps({ sectors, minCorr, onStockSelect }: Props) {
   }
 
   return (
-    <div className="p-2 sm:p-5">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-6">
+    <div className="p-2 sm:p-4">
+      <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-6">
         {sectors.map((sector, i) => (
           <SectorCard
             key={sector.name}

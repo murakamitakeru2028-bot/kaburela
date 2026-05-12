@@ -44,7 +44,7 @@ export function Heatmap({ stocks, matrix, onStockSelect }: HeatmapProps) {
   const hoveredCorr = hovered ? matrix[hovered.row][hovered.col] : null
 
   return (
-    <div ref={containerRef} className="flex flex-col items-center gap-0 w-full overflow-hidden px-2 py-3">
+    <div ref={containerRef} className="flex flex-col items-center gap-0 w-full px-2 py-3">
       {containerW > 0 && (
         <>
           <div
