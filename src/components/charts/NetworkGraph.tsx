@@ -733,7 +733,11 @@ function StockNetwork({
   const [hoveredNode, setHoveredNode] = useState<number | null>(null)
   const { isDark } = useTheme()
   const N = stocks.length
-  const nodeR = clamp(Math.min(size.w, size.h) * 0.052, 22, 38)
+  const nodeR = clamp(
+    Math.min(size.w, size.h) * 0.052 / Math.max(1, Math.sqrt(N / 10)),
+    13,
+    38,
+  )
   const hitR = nodeR + 10
 
   const edges = useMemo(() => {
@@ -750,7 +754,11 @@ function StockNetwork({
 
   const baseNodes = useMemo<XY[]>(() => {
     if (!size.w || !size.h) return []
-    return organicNetworkLayout(N, size, hitR, edges, 0.01)
+    return organicNetworkLayout(N, size, hitR, edges, 0.01, undefined, {
+      spreadScale: Math.max(1, 1 + (N - 12) * 0.038),
+      minDistanceScale: Math.max(1.45, 1.45 + (N - 14) * 0.03),
+      maxTargetScale: 2.6,
+    })
   }, [size, N, hitR, edges])
   const {
     nodes,
@@ -883,7 +891,7 @@ function StockNetwork({
                 <text
                   textAnchor="middle"
                   dominantBaseline="middle"
-                  fontSize={stock.label.length > 5 ? 9 : 11}
+                  fontSize={N > 20 ? (stock.label.length > 4 ? 7 : 8) : stock.label.length > 5 ? 9 : 11}
                   fill="var(--color-ink)"
                   fontFamily="DM Sans, sans-serif"
                   fontWeight={700}
@@ -1064,29 +1072,55 @@ export function NetworkGraph({ stocks, matrix, minCorr, sectors, period, onStock
   const sectorMatrix = sectorIndexData?.matrix ?? fallbackMatrix
   const selectedSector = selected ? sectors?.find(s => s.name === selected) : undefined
 
+  const header = (
+    <header className="shrink-0 flex items-center gap-2 px-1.5 py-2 sm:px-4 lg:px-6 border-b border-border/70">
+      <div className="shrink-0 flex flex-col justify-center">
+        <p className="text-[10px] text-muted font-mono tracking-[0.08em] uppercase leading-none">Kaburela</p>
+        <h2 className="text-[15px] font-semibold text-ink tracking-tight leading-tight">相関ネットワーク</h2>
+      </div>
+    </header>
+  )
+
   if (selectedSector) {
     return (
-      <StockNetwork
-        stocks={selectedSector.stocks}
-        matrix={sectorSubmatrix(selectedSector.stocks, stocks, matrix)}
-        minCorr={minCorr}
-        sector={selectedSector}
-        onBack={() => setSelected(null)}
-        onStockSelect={onStockSelect}
-      />
+      <div className="h-full min-h-0 flex flex-col">
+        {header}
+        <div className="min-h-0 flex-1">
+          <StockNetwork
+            stocks={selectedSector.stocks}
+            matrix={sectorSubmatrix(selectedSector.stocks, stocks, matrix)}
+            minCorr={minCorr}
+            sector={selectedSector}
+            onBack={() => setSelected(null)}
+            onStockSelect={onStockSelect}
+          />
+        </div>
+      </div>
     )
   }
 
   if (sectorMeta.length > 0 && sectorMatrix.length > 0) {
     return (
-      <SectorNetwork
-        sectors={sectorMeta}
-        sectorMatrix={sectorMatrix}
-        minCorr={minCorr}
-        onSelect={setSelected}
-      />
+      <div className="h-full min-h-0 flex flex-col">
+        {header}
+        <div className="min-h-0 flex-1">
+          <SectorNetwork
+            sectors={sectorMeta}
+            sectorMatrix={sectorMatrix}
+            minCorr={minCorr}
+            onSelect={setSelected}
+          />
+        </div>
+      </div>
     )
   }
 
-  return <StockNetwork stocks={stocks} matrix={matrix} minCorr={minCorr} onStockSelect={onStockSelect} />
+  return (
+    <div className="h-full min-h-0 flex flex-col">
+      {header}
+      <div className="min-h-0 flex-1">
+        <StockNetwork stocks={stocks} matrix={matrix} minCorr={minCorr} onStockSelect={onStockSelect} />
+      </div>
+    </div>
+  )
 }
