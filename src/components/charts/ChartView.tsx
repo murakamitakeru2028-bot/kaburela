@@ -477,6 +477,21 @@ function ChartDetails({ stocks, activeStock, data, activeCode, onActiveCodeChang
         </div>
       </div>
 
+      {!isIndex && (
+        <a
+          href={`https://finance.yahoo.co.jp/quote/${activeStock.code}.T`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="self-start inline-flex items-center gap-2 h-9 px-4 rounded-full border border-border text-[13px] text-muted hover:text-ink hover:border-muted transition-colors"
+        >
+          Yahoo Financeで詳細を確認
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
+            <path d="M7 1h4v4M11 1L5 7" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M5 2H2a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V7" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+          </svg>
+        </a>
+      )}
+
       <div className="grid gap-5 lg:grid-cols-[minmax(260px,0.8fr)_minmax(0,1fr)]">
         <section>
           <div className="flex items-center gap-2 mb-3">
