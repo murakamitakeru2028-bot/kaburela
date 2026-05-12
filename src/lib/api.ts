@@ -18,6 +18,17 @@ export interface PairData {
   corr: number
 }
 
+export interface StockCorrelationPeer {
+  stock: StockInfo
+  corr: number
+}
+
+export interface StockCorrelationResponse {
+  base: StockInfo
+  period: string
+  peers: StockCorrelationPeer[]
+}
+
 export interface ChartData {
   code: string
   dates: string[]
@@ -79,7 +90,16 @@ async function jsonFetch<T>(url: string): Promise<T> {
     const detail = await res.json().then(d => d.detail).catch(() => res.statusText)
     throw new Error(detail ?? `Data request failed (${res.status})`)
   }
-  return res.json()
+  const text = await res.text()
+  try {
+    return JSON.parse(text) as T
+  } catch {
+    const looksLikeHtml = text.trimStart().startsWith('<!doctype html') || text.trimStart().startsWith('<html')
+    if (looksLikeHtml) {
+      throw new Error(`データファイルが見つかりません: ${url}`)
+    }
+    throw new Error(`JSONを読み込めません: ${url}`)
+  }
 }
 
 function apiFetch<T>(path: string): Promise<T> {
@@ -138,6 +158,11 @@ export async function fetchRanking(
 export function fetchChart(code: string, period: string): Promise<ChartData> {
   if (apiBase) return apiFetch(`/api/stocks/${encodeURIComponent(code)}/chart?period=${period}`)
   return staticFetch(`/charts/stocks/${period}/${encodeURIComponent(code)}.json`)
+}
+
+export function fetchStockCorrelations(code: string, period: string): Promise<StockCorrelationResponse> {
+  if (apiBase) return apiFetch(`/api/stocks/${encodeURIComponent(code)}/correlations?period=${period}`)
+  return staticFetch(`/stock-correlations/${period}/${encodeURIComponent(code)}.json`)
 }
 
 export function fetchSectorChart(sector: string, period: string): Promise<ChartData> {

@@ -2,28 +2,15 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { cn } from '../../lib/cn'
 import { useTheme } from '../../lib/ThemeContext'
 import { SegmentedControl } from './TabNav'
-import { TAB_DESCS, type View } from './tabConfig'
+import { LogoMark } from './LogoMark'
 import { searchStocksApi } from '../../lib/api'
+import type { View } from './tabConfig'
 import type { StockInfo } from '../../types/stock'
 
 interface HeaderProps {
   currentView: View
   onViewChange: (view: View) => void
   onSearchSelect: (stock: StockInfo) => void
-}
-
-function LogoIcon() {
-  const { isDark } = useTheme()
-  const fills = isDark
-    ? ['#f5f5f7', '#98989d', '#48484a', '#98989d', '#f5f5f7', '#636366', '#48484a', '#636366', '#f5f5f7']
-    : ['#1d1d1f', '#6e6e73', '#c7c7cc', '#6e6e73', '#1d1d1f', '#aeaeb2', '#c7c7cc', '#aeaeb2', '#1d1d1f']
-  return (
-    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden>
-      {fills.map((fill, i) => (
-        <rect key={i} x={1 + (i % 3) * 6} y={1 + Math.floor(i / 3) * 6} width="5" height="5" fill={fill} rx="1" />
-      ))}
-    </svg>
-  )
 }
 
 function SunIcon() {
@@ -68,12 +55,10 @@ export function Header({ currentView, onViewChange, onSearchSelect }: HeaderProp
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<StockInfo[]>([])
   const [isSearching, setIsSearching] = useState(false)
-  const [hovered, setHovered] = useState(false)
-  const [isCompact, setIsCompact] = useState(false)
-  const [hoverInfo, setHoverInfo] = useState<{ desc: string; side: 'left' | 'right' } | null>(null)
   const { isDark, toggle } = useTheme()
   const searchInputRef = useRef<HTMLInputElement>(null)
   const searchPanelRef = useRef<HTMLDivElement>(null)
+  const themeLabel = isDark ? 'ライトモードに切り替え' : 'ダークモードに切り替え'
 
   const closeSearch = useCallback(() => {
     setSearchOpen(false)
@@ -93,14 +78,6 @@ export function Header({ currentView, onViewChange, onSearchSelect }: HeaderProp
   useEffect(() => {
     if (searchOpen) searchInputRef.current?.focus()
   }, [searchOpen])
-
-  useEffect(() => {
-    const media = window.matchMedia('(max-width: 640px)')
-    const update = () => setIsCompact(media.matches)
-    update()
-    media.addEventListener('change', update)
-    return () => media.removeEventListener('change', update)
-  }, [])
 
   useEffect(() => {
     function handler(e: KeyboardEvent) {
@@ -123,52 +100,40 @@ export function Header({ currentView, onViewChange, onSearchSelect }: HeaderProp
   useEffect(() => {
     const q = searchQuery.trim()
     if (!q) return
+    let cancelled = false
     const timer = setTimeout(async () => {
       setIsSearching(true)
       try {
         const results = await searchStocksApi(q)
-        setSearchResults(results.slice(0, 8))
+        if (!cancelled) setSearchResults(results.slice(0, 8))
       } catch {
-        setSearchResults([])
+        if (!cancelled) setSearchResults([])
       } finally {
-        setIsSearching(false)
+        if (!cancelled) setIsSearching(false)
       }
     }, 200)
-    return () => clearTimeout(timer)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
   }, [searchQuery])
-
-  const expanded = hovered && !isCompact
-  const displayDesc = hoverInfo?.desc ?? TAB_DESCS[currentView]
-  const showRight = hoverInfo?.side === 'right'
-  const themeLabel = isDark ? 'ライトモードに切り替え' : 'ダークモードに切り替え'
-
-  const collapsedHeight = isCompact ? 44 : 32
-  const expandedHeight = isCompact ? 44 : 64
 
   return (
     <header
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => { setHovered(false); setHoverInfo(null) }}
-      className="absolute inset-x-0 top-0 bg-paper/90 backdrop-blur-2xl shadow-[0_1px_0_rgba(0,0,0,0.06)]"
-      style={{
-        height: expanded ? expandedHeight : collapsedHeight,
-        transition: 'height 0.22s ease',
-        backgroundColor: isDark ? 'rgba(30, 30, 32, 0.92)' : undefined,
-      }}
+      className="absolute inset-x-0 top-0 h-11 sm:h-8 bg-paper/90 backdrop-blur-2xl shadow-[0_1px_0_rgba(0,0,0,0.06)]"
+      style={{ backgroundColor: isDark ? 'rgba(30, 30, 32, 0.92)' : undefined }}
     >
-      <div className="absolute inset-x-0 top-0 h-11 sm:h-8 flex items-center px-3 sm:px-5 gap-2 sm:gap-4 overflow-hidden">
+      <div className="h-full flex items-center px-3 sm:px-5 gap-2 sm:gap-4 overflow-hidden">
         <div className="flex flex-1 items-center gap-2 sm:gap-4 min-w-0">
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            <LogoIcon />
-            <span className="font-semibold text-[15px] tracking-[-0.3px] text-ink whitespace-nowrap max-[430px]:hidden">Kaburela</span>
+            <LogoMark size={18} />
+            <span className="font-semibold text-[15px] tracking-[-0.3px] text-ink whitespace-nowrap max-[430px]:hidden">
+              Kaburela
+            </span>
           </div>
           <div className="w-px h-5 bg-border shrink-0 max-[380px]:hidden" />
           <div className="min-w-0 flex-1 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <SegmentedControl
-              current={currentView}
-              onChange={onViewChange}
-              onHover={(desc) => setHoverInfo(desc ? { desc, side: 'left' } : null)}
-            />
+            <SegmentedControl current={currentView} onChange={onViewChange} />
           </div>
         </div>
 
@@ -176,9 +141,8 @@ export function Header({ currentView, onViewChange, onSearchSelect }: HeaderProp
           <div className="relative" ref={searchPanelRef}>
             <button
               onClick={() => setSearchOpen(v => !v)}
-              onMouseEnter={() => setHoverInfo({ desc: '銘柄コードまたは名前でチャートを開きます。', side: 'right' })}
-              onMouseLeave={() => setHoverInfo(null)}
               aria-label="銘柄を検索"
+              title="銘柄を検索"
               className={cn(
                 'w-10 h-10 sm:w-8 sm:h-8 rounded-[10px] flex items-center justify-center transition-colors cursor-pointer',
                 searchOpen ? 'bg-ink text-paper' : 'text-muted hover:text-ink hover:bg-subtle',
@@ -210,7 +174,11 @@ export function Header({ currentView, onViewChange, onSearchSelect }: HeaderProp
                     className="flex-1 bg-transparent text-[13px] text-ink placeholder:text-muted outline-none"
                   />
                   {searchQuery && (
-                    <button onClick={() => updateSearchQuery('')} className="text-muted hover:text-ink cursor-pointer shrink-0">
+                    <button
+                      onClick={() => updateSearchQuery('')}
+                      className="text-muted hover:text-ink cursor-pointer shrink-0"
+                      aria-label="検索語をクリア"
+                    >
                       <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
                         <path d="M1.5 1.5L10.5 10.5M10.5 1.5L1.5 10.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
                       </svg>
@@ -237,11 +205,11 @@ export function Header({ currentView, onViewChange, onSearchSelect }: HeaderProp
                   </div>
                 ) : searchQuery.trim() && !isSearching ? (
                   <p className="px-4 py-4 text-[12px] text-muted text-center">
-                    "{searchQuery}" に一致する銘柄がありません
+                    「{searchQuery}」に一致する銘柄がありません
                   </p>
                 ) : !searchQuery.trim() ? (
                   <p className="px-4 py-3 text-[11px] text-muted font-mono">
-                    検索するとチャートビューで開きます
+                    検索するとチャートビューで開けます
                   </p>
                 ) : null}
               </div>
@@ -250,30 +218,14 @@ export function Header({ currentView, onViewChange, onSearchSelect }: HeaderProp
 
           <button
             onClick={toggle}
-            onMouseEnter={() => setHoverInfo({ desc: themeLabel, side: 'right' })}
-            onMouseLeave={() => setHoverInfo(null)}
             aria-label={themeLabel}
+            title={themeLabel}
             className="w-10 h-10 sm:w-8 sm:h-8 rounded-[10px] flex items-center justify-center text-muted hover:text-ink hover:bg-subtle transition-colors cursor-pointer"
           >
             {isDark ? <SunIcon /> : <MoonIcon />}
           </button>
         </div>
       </div>
-
-      <p
-        className="absolute text-[12px] text-muted pointer-events-none whitespace-nowrap overflow-hidden text-ellipsis"
-        style={{
-          top: '50%',
-          transform: 'translateY(-50%)',
-          marginTop: 16,
-          ...(showRight ? { left: 20, right: 20, textAlign: 'right' } : { left: 88, right: 20 }),
-          opacity: expanded ? 1 : 0,
-          display: isCompact ? 'none' : undefined,
-          transition: 'opacity 0.18s ease',
-        }}
-      >
-        {displayDesc}
-      </p>
     </header>
   )
 }

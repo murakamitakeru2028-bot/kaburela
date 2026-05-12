@@ -32,6 +32,9 @@ jobs:
       - name: Install Python dependencies
         run: pip install -r backend/requirements.txt
 
+      - name: Refresh stock universe (JPX listed stocks)
+        run: python backend/stock_universe.py
+
       - name: Export static data
         run: python backend/export_static.py --refresh
 
@@ -51,7 +54,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add public/data
+          git add public/data backend/data
           if git diff --cached --quiet; then
             echo "No static data changes."
           else

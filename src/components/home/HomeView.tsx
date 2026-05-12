@@ -2,6 +2,7 @@ import { useMemo, type ReactNode } from 'react'
 import { useTheme } from '../../lib/ThemeContext'
 import { corrToFill } from '../../lib/colorUtils'
 import type { View } from '../layout/tabConfig'
+import { LogoMark } from '../layout/LogoMark'
 import type { CorrelationResponse, HealthResponse, SectorData } from '../../lib/api'
 import type { Period } from '../../types/filter'
 
@@ -254,8 +255,10 @@ function MacroPreview() {
   const rows = [
     { label: 'USD/JPY', value: 72, color: ACCENTS.network },
     { label: 'NASDAQ', value: 56, color: ACCENTS.heatmap },
+    { label: 'SOX', value: 68, color: '#7c3aed' },
+    { label: 'VIX', value: 44, color: '#ff4f5e' },
     { label: 'WTI', value: 38, color: ACCENTS.macro },
-    { label: '10Y JGB', value: 64, color: ACCENTS.ranking },
+    { label: 'US10Y', value: 64, color: ACCENTS.ranking },
   ]
   return (
     <div className="w-full space-y-3">
@@ -276,10 +279,10 @@ function MacroPreview() {
 
 function StatPill({ label, value, hint }: { label: string; value: string | number; hint: string }) {
   return (
-    <div className="min-w-0 border-y border-border py-2">
+    <div className="min-w-0 rounded-[8px] border border-border bg-paper/90 px-4 py-3 shadow-[0_8px_24px_rgba(0,0,0,0.04)]">
       <p className="text-[10px] font-mono uppercase tracking-[0.12em] text-muted truncate">{label}</p>
-      <p className="mt-1 text-[20px] font-semibold tracking-[-0.3px] text-ink tabular-nums truncate">{value}</p>
-      <p className="mt-1 text-[10px] text-muted truncate">{hint}</p>
+      <p className="mt-1.5 text-[22px] font-semibold tracking-[-0.3px] text-ink tabular-nums truncate">{value}</p>
+      <p className="mt-1.5 text-[11px] text-muted truncate">{hint}</p>
     </div>
   )
 }
@@ -329,8 +332,8 @@ function PairFocusPanel({ pair }: { pair: PairSummary | null }) {
 
 function InfoPanel({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="rounded-[8px] border border-border bg-paper p-5">
-      <h3 className="text-[15px] font-semibold tracking-[-0.2px] text-ink">{title}</h3>
+    <section className="rounded-[8px] border border-border bg-paper p-5 sm:p-6 shadow-[0_12px_34px_rgba(0,0,0,0.04)]">
+      <h3 className="text-[16px] font-semibold tracking-[-0.2px] text-ink">{title}</h3>
       {children}
     </section>
   )
@@ -352,14 +355,14 @@ function FeatureCard({ view, index, title, desc, insight, useCase, accent, child
     <button
       type="button"
       onClick={() => onNavigate(view)}
-      className="group min-h-[360px] rounded-[8px] border border-border bg-paper text-left overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:border-muted hover:shadow-[0_18px_50px_rgba(0,0,0,0.12)]"
+      className="group min-h-[390px] rounded-[8px] border border-border bg-paper text-left overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:border-muted hover:shadow-[0_22px_56px_rgba(0,0,0,0.12)]"
       style={{ animation: `fade-up 0.48s cubic-bezier(0.16,1,0.3,1) both ${delay}ms` }}
     >
       <div className="h-full flex flex-col">
-        <div className="flex items-center justify-between gap-3 px-5 pt-5">
+        <div className="flex items-center justify-between gap-3 px-6 pt-6">
           <div className="min-w-0">
             <p className="text-[10px] font-mono uppercase tracking-[0.14em] text-muted truncate">{index}</p>
-            <h3 className="mt-1 text-[19px] font-semibold tracking-[-0.25px] text-ink truncate">{title}</h3>
+            <h3 className="mt-2 text-[20px] font-semibold tracking-[-0.25px] text-ink truncate">{title}</h3>
           </div>
           <span
             className="h-9 w-9 rounded-[8px] flex items-center justify-center text-paper shrink-0 transition-transform duration-300 group-hover:translate-x-0.5"
@@ -368,13 +371,13 @@ function FeatureCard({ view, index, title, desc, insight, useCase, accent, child
             <ArrowIcon />
           </span>
         </div>
-        <p className="px-5 pt-3 text-[12px] leading-relaxed text-muted">
+        <p className="px-6 pt-4 text-[13px] leading-relaxed text-muted">
           {desc}
         </p>
-        <div className="min-h-[140px] flex items-center justify-center px-5 py-4">
+        <div className="min-h-[150px] flex items-center justify-center px-6 py-6">
           {children}
         </div>
-        <div className="mt-auto border-t border-border px-5 py-4 grid gap-3">
+        <div className="mt-auto border-t border-border px-6 py-5 grid gap-4">
           <div>
             <p className="text-[10px] font-mono uppercase tracking-[0.12em] text-muted">分かること</p>
             <p className="mt-1 text-[12px] leading-relaxed text-ink">{insight}</p>
@@ -438,48 +441,51 @@ export function HomeView({ onNavigate, sectors, correlation, health, period }: P
   ] as const
 
   return (
-    <div className="min-h-full w-full max-w-7xl mx-auto px-0 sm:px-2 lg:px-4 py-4 sm:py-6 lg:py-8">
+    <div className="min-h-full w-full max-w-7xl mx-auto px-0 sm:px-4 lg:px-6 py-6 sm:py-8 lg:py-12">
       <section
-        className="relative overflow-hidden border-y border-border py-6 sm:py-8 lg:py-10"
+        className="relative overflow-hidden border-y border-border py-10 sm:py-12 lg:py-16"
         style={{
           backgroundImage: 'linear-gradient(var(--color-border) 1px, transparent 1px), linear-gradient(90deg, var(--color-border) 1px, transparent 1px)',
-          backgroundSize: '44px 44px',
+          backgroundSize: '48px 48px',
           backgroundPosition: '-1px -1px',
         }}
       >
-        <div className="grid gap-8 lg:grid-cols-[minmax(0,1.08fr)_minmax(360px,0.92fr)] items-center">
+        <div className="grid gap-12 lg:grid-cols-[minmax(0,1.04fr)_minmax(380px,0.96fr)] items-center">
           <div className="relative z-10 max-w-3xl">
-            <div className="inline-flex items-center gap-2 border border-border bg-paper/85 backdrop-blur px-3 h-8 rounded-full">
-              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: ACCENTS.heatmap }} />
-              <span className="text-[11px] font-mono uppercase tracking-[0.12em] text-muted">相関分析ダッシュボード</span>
+            <div className="inline-flex items-center gap-3 border border-border bg-paper/90 backdrop-blur px-4 py-3 rounded-[8px] shadow-[0_10px_30px_rgba(0,0,0,0.06)]">
+              <LogoMark size={34} className="shrink-0" />
+              <div>
+                <p className="text-[11px] font-mono uppercase tracking-[0.14em] text-muted">Correlation intelligence</p>
+                <p className="mt-0.5 text-[15px] font-semibold tracking-[-0.25px] text-ink">Kaburela</p>
+              </div>
             </div>
 
-            <h1 className="mt-5 text-[38px] sm:text-[58px] lg:text-[72px] leading-[0.92] font-semibold tracking-[-1.4px] text-ink">
+            <h1 className="mt-8 text-[42px] sm:text-[62px] lg:text-[76px] leading-[0.95] font-semibold tracking-[-1.4px] text-ink">
               Kaburela
             </h1>
-            <p className="mt-5 max-w-2xl text-[15px] sm:text-[16px] leading-7 text-muted">
+            <p className="mt-6 max-w-2xl text-[16px] leading-8 text-muted">
               東証銘柄の「同じ方向に動きやすい」「逆方向に動きやすい」を可視化するツールです。
               セクター全体の傾向を掴み、気になる銘柄ペアを見つけ、最後にチャートで値動きを確認できます。
             </p>
 
-            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+            <div className="mt-8 grid gap-4 sm:grid-cols-3">
               {[
                 ['全体像', 'セクター別の相関を色で俯瞰'],
                 ['関係性', '強くつながる銘柄をネットワークで確認'],
                 ['深掘り', 'ランキングとチャートで銘柄ペアを検証'],
               ].map(([label, text]) => (
-                <div key={label} className="rounded-[8px] border border-border bg-paper/85 px-4 py-3">
+                <div key={label} className="rounded-[8px] border border-border bg-paper/85 px-5 py-4 shadow-[0_8px_24px_rgba(0,0,0,0.04)]">
                   <p className="text-[12px] font-semibold text-ink">{label}</p>
-                  <p className="mt-1 text-[11px] leading-relaxed text-muted">{text}</p>
+                  <p className="mt-2 text-[12px] leading-relaxed text-muted">{text}</p>
                 </div>
               ))}
             </div>
 
-            <div className="mt-7 grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-4">
               {heroStats.map(stat => <StatPill key={stat.label} label={stat.label} value={stat.value} hint={stat.hint} />)}
             </div>
 
-            <div className="mt-7 flex flex-wrap items-center gap-3">
+            <div className="mt-9 flex flex-wrap items-center gap-3">
               <button
                 type="button"
                 onClick={() => onNavigate('heatmap')}
@@ -499,8 +505,8 @@ export function HomeView({ onNavigate, sectors, correlation, health, period }: P
             </div>
           </div>
 
-          <div className="relative min-h-[380px] lg:min-h-[440px]">
-            <div className="absolute right-0 top-0 w-[74%] max-w-[360px] border border-border bg-paper p-4 rounded-[8px] shadow-[0_18px_50px_rgba(0,0,0,0.10)]">
+          <div className="relative min-h-[430px] lg:min-h-[500px]">
+            <div className="absolute right-0 top-0 w-[78%] max-w-[380px] border border-border bg-paper/95 p-5 rounded-[8px] shadow-[0_24px_60px_rgba(0,0,0,0.10)]">
               <div className="flex items-center justify-between mb-4">
                 <span className="text-[10px] font-mono uppercase tracking-[0.14em] text-muted">相関マップ</span>
                 <span className="text-[11px] font-mono text-ink tabular-nums">{period}</span>
@@ -508,11 +514,11 @@ export function HomeView({ onNavigate, sectors, correlation, health, period }: P
               <HeroSignalGrid correlation={correlation} isDark={isDark} />
             </div>
 
-            <div className="absolute left-0 top-[108px] w-[70%] max-w-[330px] min-h-[230px] border border-border bg-paper p-5 rounded-[8px] shadow-[0_18px_50px_rgba(0,0,0,0.10)]">
+            <div className="absolute left-0 top-[128px] w-[72%] max-w-[350px] min-h-[240px] border border-border bg-paper/95 p-6 rounded-[8px] shadow-[0_24px_60px_rgba(0,0,0,0.10)]">
               <PairFocusPanel pair={heroPair} />
             </div>
 
-            <div className="absolute right-2 bottom-0 w-[72%] max-w-[340px] border border-border bg-paper p-4 rounded-[8px] shadow-[0_18px_50px_rgba(0,0,0,0.10)]">
+            <div className="absolute right-2 bottom-0 w-[74%] max-w-[360px] border border-border bg-paper/95 p-5 rounded-[8px] shadow-[0_24px_60px_rgba(0,0,0,0.10)]">
               <div className="flex items-center justify-between gap-4">
                 <span className="text-[10px] font-mono uppercase tracking-[0.14em] text-muted">セクター構成</span>
                 <span className="text-[11px] font-mono text-ink tabular-nums">{sectors.length || '--'} セクター</span>
@@ -538,7 +544,7 @@ export function HomeView({ onNavigate, sectors, correlation, health, period }: P
         </div>
       </section>
 
-      <section className="py-8 lg:py-10 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.72fr)]">
+      <section className="py-10 lg:py-14 grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(340px,0.72fr)]">
         <InfoPanel title="相関係数の読み方">
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             {readingGuide.map(item => (
@@ -576,7 +582,7 @@ export function HomeView({ onNavigate, sectors, correlation, health, period }: P
         </InfoPanel>
       </section>
 
-      <section className="pb-8 lg:pb-10">
+      <section className="pb-10 lg:pb-14">
         <div className="flex items-end justify-between gap-5 flex-wrap">
           <div>
             <p className="text-[11px] font-mono uppercase tracking-[0.14em] text-muted">Workflow</p>
@@ -587,9 +593,9 @@ export function HomeView({ onNavigate, sectors, correlation, health, period }: P
           </p>
         </div>
 
-        <div className="mt-6 grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))' }}>
+        <div className="mt-8 grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))' }}>
           {workflow.map(([step, title, text]) => (
-            <div key={step} className="rounded-[8px] border border-border bg-paper p-4">
+            <div key={step} className="rounded-[8px] border border-border bg-paper p-5 shadow-[0_10px_28px_rgba(0,0,0,0.04)]">
               <span className="h-7 w-7 rounded-[7px] bg-ink text-paper text-[12px] font-mono flex items-center justify-center">{step}</span>
               <h3 className="mt-4 text-[14px] font-semibold text-ink">{title}</h3>
               <p className="mt-2 text-[12px] leading-relaxed text-muted">{text}</p>
@@ -598,7 +604,7 @@ export function HomeView({ onNavigate, sectors, correlation, health, period }: P
         </div>
       </section>
 
-      <section className="pb-8 lg:pb-10">
+      <section className="pb-10 lg:pb-14">
         <div className="flex items-end justify-between gap-5 flex-wrap">
           <div>
             <p className="text-[11px] font-mono uppercase tracking-[0.14em] text-muted">Views</p>
@@ -609,7 +615,7 @@ export function HomeView({ onNavigate, sectors, correlation, health, period }: P
           </p>
         </div>
 
-        <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
           <FeatureCard
             view="trend"
             index="01 / Trend"

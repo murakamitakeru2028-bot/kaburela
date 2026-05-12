@@ -19,7 +19,15 @@ from cache import TTLCache
 from config import ALL_STOCKS, MACRO_INDICATORS, SECTOR_DEFINITIONS, VALID_PERIODS
 from database import init_db
 from fetcher import PERIOD_DAYS
-from models import ChartData, CorrelationResponse, PairData, SectorData, StockInfo
+from models import (
+    ChartData,
+    CorrelationResponse,
+    PairData,
+    SectorData,
+    StockCorrelationPeer,
+    StockCorrelationResponse,
+    StockInfo,
+)
 from repository import (
     get_all_stocks,
     get_correlations,
@@ -27,6 +35,7 @@ from repository import (
     get_macro_correlations,
     get_prices,
     get_prices_multi,
+    get_stock_rankings,
     get_stocks_by_sector,
     get_top_pairs,
     has_correlation_data,
@@ -168,7 +177,8 @@ def health():
 @app.post("/api/admin/batch")
 def trigger_batch():
     last = get_last_batch_run()
-    if last and last.get("started_at"):
+    # 直前のバッチが失敗していた場合は、再開（resume）のためにクールダウンを免除する。
+    if last and last.get("status") != "error" and last.get("started_at"):
         try:
             started_at = datetime.fromisoformat(last["started_at"])
             if datetime.now() - started_at < _MANUAL_BATCH_COOLDOWN:
@@ -406,6 +416,39 @@ def get_macro(period: str = Query(default="6M")):
 def search(q: str = Query(..., min_length=1)):
     results = search_stocks(q, limit=20)
     return [StockInfo(code=s["code"], name=s["name"], label=s["label"]) for s in results]
+
+
+@app.get("/api/stocks/{code}/correlations", response_model=StockCorrelationResponse)
+def get_stock_correlations(code: str, period: str = Query(default="6M")):
+    """指定銘柄と相関の高い/低い銘柄ランキングを返す（事前計算済みのものを参照）。"""
+    _validate_period(period)
+
+    cache_key = f"stockcorr:{code}:{period}"
+    cached = _cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    stock_map = {s["code"]: s for s in get_all_stocks()}
+    base = stock_map.get(code)
+    if base is None:
+        raise HTTPException(status_code=404, detail=f"銘柄 {code} が見つかりません")
+
+    peers = [
+        StockCorrelationPeer(
+            stock=StockInfo(code=peer["code"], name=peer["name"], label=peer["label"]),
+            corr=row["value"],
+        )
+        for row in get_stock_rankings(code, period)
+        if (peer := stock_map.get(row["peer_code"])) is not None
+    ]
+
+    result = StockCorrelationResponse(
+        base=StockInfo(code=base["code"], name=base["name"], label=base["label"]),
+        period=period,
+        peers=peers,
+    )
+    _cache.set(cache_key, result)
+    return result
 
 
 @app.get("/api/stocks/{code}/chart", response_model=ChartData)

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type UIEvent, type WheelEvent } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { cn } from '../../lib/cn'
 import { hexToRgba } from '../../lib/colorUtils'
 import type { CorrelationResponse, SectorData } from '../../lib/api'
@@ -197,13 +197,21 @@ export function RankingView({ sectors, correlation, minCorr, onStockSelect }: Pr
   const [sign, setSign] = useState<Sign>('all')
   const [sort, setSort] = useState<SortMode>('strength')
   const [query, setQuery] = useState('')
-  const chromeRootRef = useRef<HTMLDivElement>(null)
-  const chromeProgressRef = useRef(0)
-  const chromeFrameRef = useRef<number | null>(null)
-  const lastScrollTopRef = useRef(0)
   const [sectorFilter, setSectorFilter] = useState('all')
   const [selectedSector, setSelectedSector] = useState<string | null>(null)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const searchRef = useRef<HTMLInputElement>(null)
   const normalizedQuery = normalizeQuery(query)
+
+  function openSearch() {
+    setSearchOpen(true)
+    requestAnimationFrame(() => searchRef.current?.focus())
+  }
+
+  function closeSearch() {
+    setSearchOpen(false)
+    setQuery('')
+  }
 
   const listRanking = useMemo(
     () => buildListPairs(mode === 'cross' ? 'cross' : 'all', sectors, correlation, minCorr, sign, normalizedQuery, sectorFilter, sort),
@@ -219,141 +227,104 @@ export function RankingView({ sectors, correlation, minCorr, onStockSelect }: Pr
   const totalSectorPairs = sectorRankings.reduce((sum, group) => sum + group.total, 0)
   const empty = mode === 'inside' ? visibleSectorGroups.length === 0 : listRanking.pairs.length === 0
 
-  useEffect(() => {
-    return () => {
-      if (chromeFrameRef.current != null) cancelAnimationFrame(chromeFrameRef.current)
-    }
-  }, [])
-
-  function applyChromeProgress(progress: number) {
-    const root = chromeRootRef.current
-    if (!root) return
-    const compact = window.innerWidth < 640
-    const topHeight = compact ? 430 : 210
-    const sectionHeight = compact ? 86 : 62
-    const sectorHeight = compact ? 58 : 46
-    root.style.setProperty('--chrome-top-height', `${Math.max(0, topHeight * (1 - progress))}px`)
-    root.style.setProperty('--chrome-section-height', `${Math.max(0, sectionHeight * (1 - progress))}px`)
-    root.style.setProperty('--chrome-sector-height', `${Math.max(0, sectorHeight * (1 - progress))}px`)
-    root.style.setProperty('--chrome-opacity', String(1 - progress))
-    root.style.setProperty('--chrome-shift', `${-8 * progress}px`)
-  }
-
-  function setChromeProgressDirect(nextProgress: number) {
-    const progress = Math.max(0, Math.min(1, nextProgress))
-    if (Math.abs(progress - chromeProgressRef.current) < 0.002) return
-    chromeProgressRef.current = progress
-    if (chromeFrameRef.current != null) return
-    chromeFrameRef.current = requestAnimationFrame(() => {
-      chromeFrameRef.current = null
-      applyChromeProgress(chromeProgressRef.current)
-    })
-  }
-
-  function handleListScroll(event: UIEvent<HTMLDivElement>) {
-    const nextTop = event.currentTarget.scrollTop
-    const delta = nextTop - lastScrollTopRef.current
-    if (delta !== 0) {
-      setChromeProgressDirect(nextTop <= 2 ? 0 : chromeProgressRef.current + delta / 160)
-    }
-    lastScrollTopRef.current = nextTop
-  }
-
-  function handleListWheel(event: WheelEvent<HTMLDivElement>) {
-    if (event.deltaY < 0) {
-      setChromeProgressDirect(chromeProgressRef.current + event.deltaY / 160)
-    }
-  }
-
-  const topChromeStyle = {
-    maxHeight: 'var(--chrome-top-height, 430px)',
-    opacity: 'var(--chrome-opacity, 1)',
-    transform: 'translateY(var(--chrome-shift, 0px))',
-  }
-
   return (
-    <div ref={chromeRootRef} className="h-full min-h-0 px-1.5 py-2 sm:px-4 sm:py-3 lg:px-6 flex flex-col gap-3">
-      <div className="shrink-0 overflow-hidden transition-opacity duration-75" style={topChromeStyle}>
-      <header className="flex items-start justify-between gap-5 flex-wrap">
-        <div className="min-w-0">
-          <p className="text-[11px] text-muted font-mono tracking-[0.12em] uppercase">Ranking</p>
-          <h2 className="mt-1 text-[20px] sm:text-[24px] font-semibold text-ink tracking-[-0.6px]">相関ランキング</h2>
-          <p className="mt-1 text-[12px] text-muted">
-            セクター横断、セクター内、全ペアを同じ基準で並べ替えて確認できます。
-          </p>
-        </div>
-
-        <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:items-end">
-          <div className="flex items-center gap-2 flex-wrap justify-start sm:justify-end">
-            <SegmentedSwitch
-              options={[
-                { id: 'all', label: 'すべて' },
-                { id: 'cross', label: 'セクター間' },
-                { id: 'inside', label: 'セクター内' },
-              ]}
-              value={mode}
-              onChange={setMode}
-            />
-            <SegmentedSwitch
-              options={[
-                { id: 'all', label: 'すべて' },
-                { id: 'pos', label: '正相関' },
-                { id: 'neg', label: '逆相関' },
-              ]}
-              value={sign}
-              onChange={setSign}
-            />
+    <div className="h-full min-h-0 px-1.5 py-2 sm:px-4 sm:py-2 lg:px-6 flex flex-col gap-1.5">
+      <header className="shrink-0 flex flex-col gap-1 border-b border-border/70 pb-1.5">
+        <div className="flex items-center gap-2 flex-wrap">
+          <SegmentedSwitch
+            options={[
+              { id: 'all', label: 'すべて' },
+              { id: 'cross', label: 'セクター間' },
+              { id: 'inside', label: 'セクター内' },
+            ]}
+            value={mode}
+            onChange={setMode}
+          />
+          <span className="w-px h-4 bg-border shrink-0" />
+          <SegmentedSwitch
+            options={[
+              { id: 'all', label: 'すべて' },
+              { id: 'pos', label: '正相関' },
+              { id: 'neg', label: '逆相関' },
+            ]}
+            value={sign}
+            onChange={setSign}
+          />
+          <span className="w-px h-4 bg-border shrink-0" />
+          <SelectButton
+            value={sectorFilter}
+            onChange={value => { setSectorFilter(value); setSelectedSector(null) }}
+            options={[
+              { value: 'all', label: '全セクター' },
+              ...sectors.map(s => ({ value: s.name, label: s.name })),
+            ]}
+          />
+          <SelectButton
+            value={sort}
+            onChange={value => setSort(value as SortMode)}
+            options={[
+              { value: 'strength', label: '強さ順' },
+              { value: 'highest', label: '相関値 高い順' },
+              { value: 'lowest', label: '相関値 低い順' },
+              { value: 'name', label: '銘柄名順' },
+            ]}
+          />
+          <div className="ml-auto">
+            {searchOpen ? (
+              <label className="h-8 rounded-full bg-paper border border-border px-3 flex items-center gap-1.5 w-[180px] sm:w-[220px]">
+                <svg width="12" height="12" viewBox="0 0 15 15" fill="none" className="text-muted shrink-0" aria-hidden>
+                  <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" strokeWidth="1.5" />
+                  <path d="M10.5 10.5L13.5 13.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+                <input
+                  ref={searchRef}
+                  value={query}
+                  onChange={event => setQuery(event.target.value)}
+                  placeholder="銘柄・コード・セクター"
+                  className="min-w-0 flex-1 bg-transparent outline-none text-[12px] text-ink placeholder:text-muted"
+                />
+                <button
+                  type="button"
+                  onClick={closeSearch}
+                  className="text-muted hover:text-ink cursor-pointer shrink-0 p-0.5"
+                  aria-label="検索を閉じる"
+                >
+                  <svg width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden>
+                    <path d="M1 1L11 11M11 1L1 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
+                </button>
+              </label>
+            ) : (
+              <button
+                type="button"
+                onClick={openSearch}
+                className={cn(
+                  'h-8 w-8 rounded-full flex items-center justify-center cursor-pointer transition-colors',
+                  query ? 'bg-subtle text-ink' : 'text-muted hover:bg-subtle hover:text-ink',
+                )}
+                aria-label="検索"
+              >
+                <svg width="14" height="14" viewBox="0 0 15 15" fill="none" aria-hidden>
+                  <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" strokeWidth="1.5" />
+                  <path d="M10.5 10.5L13.5 13.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+              </button>
+            )}
           </div>
         </div>
+
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <StatLine label="モード" value={modeLabel(mode)} />
+          <span className="text-muted/40 text-[10px] select-none">·</span>
+          <StatLine label="対象" value={signLabel(sign)} />
+          <span className="text-muted/40 text-[10px] select-none">·</span>
+          <StatLine label="並び" value={sortLabel(sort)} />
+          <span className="text-muted/40 text-[10px] select-none">·</span>
+          <StatLine label="下限" value={minCorr.toFixed(2)} />
+          <span className="text-muted/40 text-[10px] select-none">·</span>
+          <StatLine label="候補" value={mode === 'inside' ? totalSectorPairs.toLocaleString('ja-JP') : listRanking.total.toLocaleString('ja-JP')} />
+        </div>
       </header>
-
-      <div className="mt-3 grid min-w-0 gap-2 md:grid-cols-[minmax(220px,1fr)_170px_170px]">
-        <label className="h-10 rounded-full bg-paper border border-border px-4 flex items-center gap-2">
-          <svg width="14" height="14" viewBox="0 0 15 15" fill="none" className="text-muted shrink-0" aria-hidden>
-            <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" strokeWidth="1.5" />
-            <path d="M10.5 10.5L13.5 13.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
-          <input
-            value={query}
-            onChange={event => setQuery(event.target.value)}
-            placeholder="銘柄名・コード・セクターで検索"
-            className="min-w-0 flex-1 bg-transparent outline-none text-[13px] text-ink placeholder:text-muted"
-          />
-        </label>
-        <select
-          value={sectorFilter}
-          onChange={event => {
-            setSectorFilter(event.target.value)
-            setSelectedSector(null)
-          }}
-          className="h-10 rounded-full bg-paper border border-border px-4 text-[13px] text-ink outline-none cursor-pointer"
-        >
-          <option value="all">全セクター</option>
-          {sectors.map(sector => (
-            <option key={sector.name} value={sector.name}>{sector.name}</option>
-          ))}
-        </select>
-        <select
-          value={sort}
-          onChange={event => setSort(event.target.value as SortMode)}
-          className="h-10 rounded-full bg-paper border border-border px-4 text-[13px] text-ink outline-none cursor-pointer"
-        >
-          <option value="strength">強さ順</option>
-          <option value="highest">相関値 高い順</option>
-          <option value="lowest">相関値 低い順</option>
-          <option value="name">銘柄名順</option>
-        </select>
-      </div>
-
-      <div className="mt-3 grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 118px), 1fr))' }}>
-        <Metric label="表示モード" value={modeLabel(mode)} />
-        <Metric label="対象" value={signLabel(sign)} />
-        <Metric label="並び順" value={sortLabel(sort)} />
-        <Metric label="下限" value={minCorr.toFixed(2)} />
-        <Metric label="候補ペア" value={mode === 'inside' ? totalSectorPairs.toLocaleString('ja-JP') : listRanking.total.toLocaleString('ja-JP')} />
-      </div>
-
-      </div>
 
       <div className="min-h-0 flex-1">
         {empty ? (
@@ -362,18 +333,13 @@ export function RankingView({ sectors, correlation, minCorr, onStockSelect }: Pr
           <SectorRankingPanel
             groups={visibleSectorGroups}
             active={activeSector}
-            onListScroll={handleListScroll}
-            onListWheel={handleListWheel}
             onSelectSector={setSelectedSector}
             onStockSelect={onStockSelect}
           />
         ) : (
           <RankingList
-            mode={mode}
             pairs={listRanking.pairs}
             total={listRanking.total}
-            onListScroll={handleListScroll}
-            onListWheel={handleListWheel}
             onStockSelect={onStockSelect}
           />
         )}
@@ -392,17 +358,17 @@ function SegmentedSwitch<T extends string>({
   onChange: (value: T) => void
 }) {
   return (
-    <div className="max-w-full flex items-center bg-subtle rounded-full p-1 gap-1 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div className="flex items-center gap-0.5 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {options.map(option => (
         <button
           key={option.id}
           type="button"
           onClick={() => onChange(option.id)}
           className={cn(
-            'h-8 px-3 sm:px-4 rounded-full text-[12px] font-semibold transition-all cursor-pointer whitespace-nowrap',
+            'h-7 px-2.5 text-[12px] font-medium transition-all cursor-pointer whitespace-nowrap border-b-2',
             value === option.id
-              ? 'bg-paper text-ink shadow-[0_1px_4px_rgba(0,0,0,0.12)]'
-              : 'text-muted hover:text-ink',
+              ? 'border-ink text-ink'
+              : 'border-transparent text-muted hover:text-ink/70',
           )}
         >
           {option.label}
@@ -412,12 +378,44 @@ function SegmentedSwitch<T extends string>({
   )
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+function SelectButton({
+  value,
+  onChange,
+  options,
+}: {
+  value: string
+  onChange: (value: string) => void
+  options: { value: string; label: string }[]
+}) {
+  const label = options.find(o => o.value === value)?.label ?? value
   return (
-    <div className="border-t border-border pt-3">
-      <p className="text-[10px] text-muted font-mono tracking-[0.08em] uppercase">{label}</p>
-      <p className="mt-1 text-[18px] text-ink font-semibold tabular-nums">{value}</p>
+    <div className="relative flex items-center">
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+        aria-label={label}
+      >
+        {options.map(o => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+      </select>
+      <span className="flex items-center gap-1 h-7 px-1.5 text-[12px] text-ink/70 hover:text-ink transition-colors cursor-pointer select-none">
+        {label}
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden>
+          <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </span>
     </div>
+  )
+}
+
+function StatLine({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="flex items-center gap-1.5">
+      <span className="text-[10px] text-muted font-mono tracking-[0.08em] uppercase">{label}</span>
+      <span className="text-[12px] font-semibold font-mono tabular-nums text-ink">{value}</span>
+    </span>
   )
 }
 
@@ -441,50 +439,32 @@ function EmptyState() {
 }
 
 function RankingList({
-  mode,
   pairs,
   total,
-  onListScroll,
-  onListWheel,
   onStockSelect,
 }: {
-  mode: Exclude<Mode, 'inside'>
   pairs: RankedPair[]
   total: number
-  onListScroll: (event: UIEvent<HTMLDivElement>) => void
-  onListWheel: (event: WheelEvent<HTMLDivElement>) => void
   onStockSelect: (stock: StockInfo) => void
 }) {
-  const sectionHeaderStyle = {
-    maxHeight: 'var(--chrome-section-height, 86px)',
-    opacity: 'var(--chrome-opacity, 1)',
-  }
-
   return (
     <section className="h-full min-h-0 flex flex-col overflow-hidden">
-      <div className="px-1 pb-3 flex flex-wrap items-end justify-between gap-3 sm:gap-4 shrink-0 overflow-hidden transition-opacity duration-75" style={sectionHeaderStyle}>
-        <div className="min-w-0">
-          <p className="text-[10px] text-muted font-mono tracking-[0.14em] uppercase">Ranking Board</p>
-          <h3 className="text-[15px] font-semibold text-ink">{modeLabel(mode)}ランキング</h3>
-          <p className="text-[11px] text-muted mt-0.5">
-            {mode === 'all' ? 'セクター内とセクター間をまとめて表示' : '別セクター同士だけを表示'}
-          </p>
+      <div className="flex items-center px-1 py-1.5 border-y border-border/70 shrink-0">
+        <div className="hidden lg:grid grid-cols-[56px_minmax(0,1fr)_220px_160px] flex-1 gap-3 text-[10px] text-muted font-mono tracking-[0.08em] uppercase">
+          <span>Rank</span>
+          <span>Pair</span>
+          <span>Sector</span>
+          <span>Strength</span>
         </div>
-        <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-          <StatusPill label="表示" value={pairs.length.toLocaleString('ja-JP')} />
-          <StatusPill label="候補" value={total.toLocaleString('ja-JP')} />
+        <div className="flex items-center gap-2 ml-auto shrink-0">
+          <StatLine label="表示" value={pairs.length.toLocaleString('ja-JP')} />
+          <span className="text-muted/40 text-[10px] select-none">·</span>
+          <StatLine label="候補" value={total.toLocaleString('ja-JP')} />
+          <span className="hidden lg:inline w-[88px] text-right text-[10px] text-muted font-mono tracking-[0.08em] uppercase">Corr</span>
         </div>
       </div>
 
-      <div className="hidden lg:grid grid-cols-[56px_minmax(0,1fr)_220px_160px_88px] gap-3 px-1 py-2.5 border-y border-border/70 text-[10px] text-muted font-mono tracking-[0.08em] uppercase shrink-0">
-        <span>Rank</span>
-        <span>Pair</span>
-        <span>Sector</span>
-        <span>Strength</span>
-        <span className="text-right">Corr</span>
-      </div>
-
-      <div className="min-h-0 overflow-auto" onScroll={onListScroll} onWheel={onListWheel}>
+      <div className="min-h-0 overflow-auto">
         {pairs.map((pair, index) => (
           <RankingRow
             key={`${pair.sectorA.name}-${pair.stockA.code}-${pair.sectorB.name}-${pair.stockB.code}`}
@@ -501,37 +481,24 @@ function RankingList({
 function SectorRankingPanel({
   groups,
   active,
-  onListScroll,
-  onListWheel,
   onSelectSector,
   onStockSelect,
 }: {
   groups: SectorRanking[]
   active: SectorRanking | null
-  onListScroll: (event: UIEvent<HTMLDivElement>) => void
-  onListWheel: (event: WheelEvent<HTMLDivElement>) => void
   onSelectSector: (sector: string) => void
   onStockSelect: (stock: StockInfo) => void
 }) {
   if (!active) return <EmptyState />
 
-  const sectionHeaderStyle = {
-    maxHeight: 'var(--chrome-section-height, 86px)',
-    opacity: 'var(--chrome-opacity, 1)',
-  }
-  const sectorHeaderStyle = {
-    maxHeight: 'var(--chrome-sector-height, 58px)',
-    opacity: 'var(--chrome-opacity, 1)',
-  }
-
   return (
     <section className="h-full min-h-0 grid gap-3 sm:gap-5 lg:grid-cols-[260px_minmax(0,1fr)]">
       <div className="min-h-0 overflow-hidden">
-        <div className="px-1 pb-3 overflow-hidden transition-opacity duration-75" style={sectorHeaderStyle}>
+        <div className="px-1 pb-2">
           <p className="text-[10px] text-muted font-mono tracking-[0.14em] uppercase">Sectors</p>
           <h3 className="text-[14px] font-semibold text-ink">セクター選択</h3>
         </div>
-        <div className="max-h-[170px] sm:max-h-[240px] lg:max-h-none lg:h-full overflow-auto border-y border-border/70" onScroll={onListScroll} onWheel={onListWheel}>
+        <div className="max-h-[170px] sm:max-h-[240px] lg:max-h-none lg:h-full overflow-auto border-y border-border/70">
           {groups.map(group => (
             <button
               key={group.sector.name}
@@ -556,7 +523,7 @@ function SectorRankingPanel({
       </div>
 
       <section className="min-h-0 overflow-hidden flex flex-col">
-        <div className="px-1 pb-3 flex flex-wrap items-end justify-between gap-3 sm:gap-4 shrink-0 overflow-hidden transition-opacity duration-75" style={sectionHeaderStyle}>
+        <div className="px-1 pb-2 flex flex-wrap items-end justify-between gap-3 sm:gap-4 shrink-0">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: active.sector.color }} />
@@ -577,7 +544,7 @@ function SectorRankingPanel({
           <span className="text-right">Corr</span>
         </div>
 
-        <div className="min-h-0 overflow-auto" onScroll={onListScroll} onWheel={onListWheel}>
+        <div className="min-h-0 overflow-auto">
           {active.pairs.map((pair, index) => (
             <SectorRow
               key={`${pair.stockA.code}-${pair.stockB.code}`}

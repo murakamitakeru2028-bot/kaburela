@@ -30,7 +30,8 @@ export function Heatmap({ stocks, matrix, onStockSelect }: HeatmapProps) {
   }, [])
 
   const N = stocks.length
-  const CELL = Math.max(36, Math.min(68, Math.floor((containerW - LABEL_W - 48 - GAP * (N - 1)) / N)))
+  const availableW = Math.max(0, containerW - 16)
+  const CELL = Math.max(24, Math.min(68, Math.floor((availableW - LABEL_W - GAP * (N - 1)) / N)))
   const svgW = LABEL_W + N * CELL + GAP * (N - 1)
   const svgH = N * CELL + GAP * (N - 1)
   const center = (N - 1) / 2
@@ -43,7 +44,7 @@ export function Heatmap({ stocks, matrix, onStockSelect }: HeatmapProps) {
   const hoveredCorr = hovered ? matrix[hovered.row][hovered.col] : null
 
   return (
-    <div ref={containerRef} className="flex flex-col items-start gap-0 w-full overflow-x-auto px-2 py-3 sm:px-3">
+    <div ref={containerRef} className="flex flex-col items-center gap-0 w-full overflow-hidden px-2 py-3">
       {containerW > 0 && (
         <>
           <div
@@ -131,14 +132,13 @@ export function Heatmap({ stocks, matrix, onStockSelect }: HeatmapProps) {
                       height={CELL}
                       rx={CELL_R}
                       fill={row === col ? (isDark ? '#2c2c2e' : '#e8e8e8') : corrToFill(corr, isDark)}
+                      stroke={isHov ? 'var(--color-ink)' : 'transparent'}
+                      strokeWidth={isHov ? 1.8 : 0}
                       onMouseEnter={() => { if (row !== col) setHovered({ row, col }) }}
                       onMouseLeave={() => setHovered(null)}
                       style={{
-                        transformBox: 'fill-box',
-                        transformOrigin: 'center',
-                        transform: isHov ? 'scale(1.1)' : 'scale(1)',
                         opacity: hovered && !isRowOrCol ? 0.55 : (row === col ? 0.5 : 1),
-                        transition: 'transform 0.15s ease, opacity 0.15s ease',
+                        transition: 'opacity 0.15s ease, stroke 0.15s ease, stroke-width 0.15s ease, filter 0.15s ease',
                         cursor: 'default',
                         filter: isHov ? 'drop-shadow(0 4px 8px rgba(0,0,0,0.18))' : 'none',
                       } as React.CSSProperties}

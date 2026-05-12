@@ -73,6 +73,10 @@ def export_static(output_dir: Path, refresh: bool) -> None:
                 output_dir / "charts" / "stocks" / period / f"{stock['code']}.json",
                 api.get_chart(stock["code"], period),
             )
+            write_json(
+                output_dir / "stock-correlations" / period / f"{stock['code']}.json",
+                api.get_stock_correlations(stock["code"], period),
+            )
 
         for sector in SECTOR_DEFINITIONS:
             write_json(

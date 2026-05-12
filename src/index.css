@@ -73,3 +73,59 @@
   from { opacity: 0; transform: scale(0.96) translateY(8px); }
   to   { opacity: 1; transform: scale(1) translateY(0); }
 }
+
+@keyframes tab-view-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes tab-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(28px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes tab-summary-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tab-view-motion {
+  animation: tab-view-in 0.18s ease-out both;
+  transform-origin: top center;
+}
+
+.tab-summary-motion {
+  animation: tab-summary-in 0.26s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.tab-panel-motion {
+  animation: tab-panel-in 0.55s cubic-bezier(0.16, 1, 0.3, 1) 0.02s both;
+  transform-origin: top center;
+  will-change: opacity, transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab-view-motion,
+  .tab-summary-motion,
+  .tab-panel-motion {
+    animation: none;
+  }
+}

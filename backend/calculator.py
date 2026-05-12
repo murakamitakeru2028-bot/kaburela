@@ -5,7 +5,7 @@ import pandas as pd
 def corr_matrix_from_prices(prices: pd.DataFrame, codes: list[str]) -> list[list[float]]:
     """Calculate a correlation matrix from a close-price DataFrame."""
     prices = prices.reindex(columns=codes)
-    returns = prices.pct_change().dropna(how="all")
+    returns = prices.pct_change(fill_method=None).dropna(how="all")
     corr = returns.corr()
 
     n = len(codes)

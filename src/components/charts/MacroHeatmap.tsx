@@ -28,6 +28,47 @@ interface IndicatorRanking {
 
 const TOP_STOCKS = 8
 
+type MacroCategoryKey = 'all' | 'fx' | 'equity' | 'rates' | 'commodity' | 'semiconductor' | 'crypto'
+
+const MACRO_CATEGORIES: { key: MacroCategoryKey; label: string }[] = [
+  { key: 'all', label: 'すべて' },
+  { key: 'fx', label: '為替' },
+  { key: 'equity', label: '株価指数' },
+  { key: 'rates', label: '金利・ドル' },
+  { key: 'commodity', label: '商品' },
+  { key: 'semiconductor', label: '半導体' },
+  { key: 'crypto', label: '暗号資産' },
+]
+
+const INDICATOR_CATEGORY: Record<string, Exclude<MacroCategoryKey, 'all'>> = {
+  USDJPY: 'fx',
+  EURJPY: 'fx',
+  CNYJPY: 'fx',
+  AUDJPY: 'fx',
+  N225: 'equity',
+  TOPIXETF: 'equity',
+  GSPC: 'equity',
+  DJI: 'equity',
+  NASDAQ: 'equity',
+  VIX: 'rates',
+  US10Y: 'rates',
+  DXY: 'rates',
+  GOLD: 'commodity',
+  SILVER: 'commodity',
+  COPPER: 'commodity',
+  OIL: 'commodity',
+  NATGAS: 'commodity',
+  BTCJPY: 'crypto',
+  SOX: 'semiconductor',
+  SOXX: 'semiconductor',
+  SMH: 'semiconductor',
+  NVDA: 'semiconductor',
+  TSM: 'semiconductor',
+  ASML: 'semiconductor',
+  AMD: 'semiconductor',
+  AVGO: 'semiconductor',
+}
+
 function buildSectorMap(sectors: SectorData[]): Map<string, SectorMeta> {
   const map = new Map<string, SectorMeta>()
   sectors.forEach(sec => {
@@ -44,6 +85,10 @@ function corrTone(corr: number): string {
   if (corr >= 0.35) return '正相関'
   if (corr <= -0.35) return '逆相関'
   return '中立'
+}
+
+function categoryForIndicator(indicator: MacroIndicator): MacroCategoryKey {
+  return INDICATOR_CATEGORY[indicator.code] ?? 'equity'
 }
 
 function StockCard({
@@ -129,9 +174,9 @@ function IndicatorRow({
   const strongest = row.stocks[0]
 
   return (
-    <section className="grid gap-3 sm:gap-4 border-b border-border py-4 first:pt-0 last:border-b-0 sm:grid-cols-[148px_minmax(0,1fr)] md:grid-cols-[176px_minmax(0,1fr)]">
+    <section className="grid gap-4 border-b border-border py-4 first:pt-0 last:border-b-0 [grid-template-columns:minmax(0,1fr)] lg:[grid-template-columns:190px_minmax(0,1fr)]">
       <div className="min-w-0">
-        <div className="sm:sticky top-0 flex items-start gap-3">
+        <div className="lg:sticky lg:top-0 flex items-start gap-3">
           <span className="mt-1 h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: row.indicator.color }} />
           <div className="min-w-0">
             <p className="text-[13px] font-semibold text-ink leading-tight">{row.indicator.name}</p>
@@ -168,6 +213,7 @@ function IndicatorRow({
 
 export function MacroHeatmap({ data, sectors, onStockSelect }: Props) {
   const [hoveredKey, setHoveredKey] = useState<string | null>(null)
+  const [activeCategory, setActiveCategory] = useState<MacroCategoryKey>('all')
   const { isDark } = useTheme()
 
   const rankings = useMemo<IndicatorRanking[]>(() => {
@@ -191,17 +237,32 @@ export function MacroHeatmap({ data, sectors, onStockSelect }: Props) {
     })
   }, [data, sectors])
 
+  const categoryCounts = useMemo(() => {
+    const counts = new Map<MacroCategoryKey, number>(MACRO_CATEGORIES.map(category => [category.key, 0]))
+    rankings.forEach(row => {
+      const category = categoryForIndicator(row.indicator)
+      counts.set(category, (counts.get(category) ?? 0) + 1)
+      counts.set('all', (counts.get('all') ?? 0) + 1)
+    })
+    return counts
+  }, [rankings])
+
+  const visibleRankings = useMemo(
+    () => rankings.filter(row => activeCategory === 'all' || categoryForIndicator(row.indicator) === activeCategory),
+    [rankings, activeCategory],
+  )
+
   return (
     <div className="h-full flex flex-col">
-      <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4 px-3 pt-3 pb-3 sm:px-5 sm:pt-4 shrink-0">
+      <div className="flex flex-wrap items-start justify-between gap-4 px-3 pt-3 pb-3 sm:px-5 sm:pt-4 shrink-0">
         <div className="min-w-0">
           <h2 className="text-[15px] font-semibold text-ink tracking-[-0.3px]">マクロ指標別 上位銘柄</h2>
-          <p className="text-[11px] text-muted mt-0.5">各指標と相関が強い銘柄を絶対値順で表示</p>
+          <p className="text-[11px] text-muted mt-0.5">為替、株価指数、商品、半導体などを切り替えて確認</p>
         </div>
-        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+        <div className="flex items-center gap-2 shrink-0 min-w-0">
           <span className="text-[10px] font-mono tabular-nums" style={{ color: 'var(--color-neg)' }}>逆相関</span>
           <div
-            className="w-24 h-[6px] rounded-full"
+            className="w-20 sm:w-24 h-[6px] rounded-full"
             style={{
               background: `linear-gradient(to right, var(--color-neg) 0%, ${isDark ? '#2c2c2e' : '#f0f0f0'} 50%, var(--color-pos) 100%)`,
             }}
@@ -213,12 +274,36 @@ export function MacroHeatmap({ data, sectors, onStockSelect }: Props) {
       <div className="border-t border-border mx-3 sm:mx-5 shrink-0" />
 
       <div className="flex-1 overflow-auto px-3 py-3 sm:px-5 sm:py-4">
-        <div className="hidden gap-4 pb-2 sm:grid sm:grid-cols-[148px_minmax(0,1fr)] md:grid-cols-[176px_minmax(0,1fr)]">
-          <span className="text-[11px] text-muted font-mono">指標</span>
-          <span className="text-[11px] text-muted font-mono">上位銘柄</span>
+        <div className="flex flex-wrap items-center gap-2 pb-4">
+          {MACRO_CATEGORIES.map(category => {
+            const count = categoryCounts.get(category.key) ?? 0
+            const selected = activeCategory === category.key
+            return (
+              <button
+                key={category.key}
+                type="button"
+                onClick={() => setActiveCategory(category.key)}
+                disabled={count === 0}
+                aria-pressed={selected}
+                className={`h-8 rounded-[8px] border px-3 text-[12px] font-semibold whitespace-nowrap transition-colors ${
+                  selected
+                    ? 'border-ink bg-ink text-paper'
+                    : 'border-border text-muted hover:text-ink hover:bg-subtle disabled:opacity-40 disabled:hover:bg-transparent'
+                }`}
+              >
+                {category.label}
+                <span className="ml-1.5 font-mono text-[10px] tabular-nums">{count}</span>
+              </button>
+            )
+          })}
         </div>
 
-        {rankings.map(row => (
+        <div className="grid gap-4 pb-2 [grid-template-columns:minmax(0,1fr)] lg:[grid-template-columns:190px_minmax(0,1fr)]">
+          <span className="text-[11px] text-muted font-mono">指標</span>
+          <span className="hidden lg:inline text-[11px] text-muted font-mono">上位銘柄</span>
+        </div>
+
+        {visibleRankings.map(row => (
           <IndicatorRow
             key={row.indicator.code}
             row={row}

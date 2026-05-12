@@ -107,6 +107,22 @@ def upsert_prices(records: list[dict]) -> None:
         )
 
 
+def get_recent_price_codes(since: str) -> set[str]:
+    """since 以降の終値データを持つ銘柄コードの集合（バッチ再開時のスキップ判定用）。"""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT DISTINCT code FROM prices WHERE date >= ?", (since,)
+        ).fetchall()
+    return {r["code"] for r in rows}
+
+
+def delete_old_prices(before: str) -> int:
+    """before より古い終値データを削除する（pricesテーブルの無制限な肥大化を防ぐ）。"""
+    with get_conn() as conn:
+        cur = conn.execute("DELETE FROM prices WHERE date < ?", (before,))
+        return cur.rowcount
+
+
 def get_prices_multi(codes: list[str], since: str) -> list[dict]:
     """Return cached prices for multiple stock codes."""
     if not codes:
@@ -159,6 +175,47 @@ def has_macro_correlation_data(period: str) -> bool:
         row = conn.execute(
             "SELECT 1 FROM macro_correlations WHERE period = ? LIMIT 1",
             (period,),
+        ).fetchone()
+        return row is not None
+
+
+def clear_stock_rankings() -> None:
+    """銘柄相関ランキングを全削除する（バッチで毎回作り直すため）。"""
+    with get_conn() as conn:
+        conn.execute("DELETE FROM stock_correlation_rankings")
+
+
+def upsert_stock_rankings(records: list[dict]) -> None:
+    now = datetime.now().isoformat()
+    with get_conn() as conn:
+        conn.executemany(
+            """INSERT OR REPLACE INTO stock_correlation_rankings
+               (base_code, peer_code, period, value, updated_at)
+               VALUES (?,?,?,?,?)""",
+            [
+                (r["base_code"], r["peer_code"], r["period"], r["value"], now)
+                for r in records
+            ],
+        )
+
+
+def get_stock_rankings(base_code: str, period: str) -> list[dict]:
+    """指定銘柄・期間の相関ランキング（peer_code, value）を相関の高い順で返す。"""
+    with get_conn() as conn:
+        rows = conn.execute(
+            """SELECT peer_code, value FROM stock_correlation_rankings
+               WHERE base_code = ? AND period = ?
+               ORDER BY value DESC""",
+            (base_code, period),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def has_stock_ranking_data(base_code: str, period: str) -> bool:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT 1 FROM stock_correlation_rankings WHERE base_code = ? AND period = ? LIMIT 1",
+            (base_code, period),
         ).fetchone()
         return row is not None
 

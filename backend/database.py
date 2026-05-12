@@ -55,6 +55,20 @@ CREATE TABLE IF NOT EXISTS macro_correlations (
 
 CREATE INDEX IF NOT EXISTS idx_macro_correlations_period
     ON macro_correlations (period);
+
+-- 各銘柄について、相関の強い/弱い上位の相手銘柄を事前計算して保持する。
+-- base_code を選ぶと、その銘柄と相関の高い/低い銘柄ランキングを高速に引ける。
+CREATE TABLE IF NOT EXISTS stock_correlation_rankings (
+    base_code  TEXT NOT NULL,
+    peer_code  TEXT NOT NULL,
+    period     TEXT NOT NULL,
+    value      REAL NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (base_code, period, peer_code)
+);
+
+CREATE INDEX IF NOT EXISTS idx_stock_corr_rank_base_period
+    ON stock_correlation_rankings (base_code, period);
 """
 
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type UIEvent, type WheelEvent } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { cn } from '../../lib/cn'
 import { fetchCorrelation, type CorrelationResponse, type SectorData } from '../../lib/api'
 import type { Period } from '../../types/filter'
@@ -110,10 +110,6 @@ export function TrendView({ period, sectors, minCorr, onStockSelect }: Props) {
   const [mode, setMode] = useState<Mode>('all')
   const [threshold, setThreshold] = useState(0.15)
   const [query, setQuery] = useState('')
-  const chromeRootRef = useRef<HTMLDivElement>(null)
-  const chromeProgressRef = useRef(0)
-  const chromeFrameRef = useRef<number | null>(null)
-  const lastScrollTopRef = useRef(0)
   const [data, setData] = useState<{
     periods: TrendPeriods
     shortData: CorrelationResponse
@@ -138,12 +134,6 @@ export function TrendView({ period, sectors, minCorr, onStockSelect }: Props) {
 
     return () => { cancelled = true }
   }, [trendPeriods])
-
-  useEffect(() => {
-    return () => {
-      if (chromeFrameRef.current != null) cancelAnimationFrame(chromeFrameRef.current)
-    }
-  }, [])
 
   const visibleCodes = useMemo(
     () => new Set(sectors.flatMap(sector => sector.stocks.map(stock => stock.code))),
@@ -175,44 +165,6 @@ export function TrendView({ period, sectors, minCorr, onStockSelect }: Props) {
   const hasCurrentData = data?.periods.short === trendPeriods.short && data.periods.long === trendPeriods.long
   const currentError = error?.periods.short === trendPeriods.short && error.periods.long === trendPeriods.long ? error.message : null
 
-  function applyChromeProgress(progress: number) {
-    const root = chromeRootRef.current
-    if (!root) return
-    const compact = window.innerWidth < 640
-    const topHeight = compact ? 430 : 210
-    const sectionHeight = compact ? 86 : 62
-    root.style.setProperty('--chrome-top-height', `${Math.max(0, topHeight * (1 - progress))}px`)
-    root.style.setProperty('--chrome-section-height', `${Math.max(0, sectionHeight * (1 - progress))}px`)
-    root.style.setProperty('--chrome-opacity', String(1 - progress))
-    root.style.setProperty('--chrome-shift', `${-8 * progress}px`)
-  }
-
-  function setChromeProgressDirect(nextProgress: number) {
-    const progress = Math.max(0, Math.min(1, nextProgress))
-    if (Math.abs(progress - chromeProgressRef.current) < 0.002) return
-    chromeProgressRef.current = progress
-    if (chromeFrameRef.current != null) return
-    chromeFrameRef.current = requestAnimationFrame(() => {
-      chromeFrameRef.current = null
-      applyChromeProgress(chromeProgressRef.current)
-    })
-  }
-
-  function handleListScroll(event: UIEvent<HTMLDivElement>) {
-    const nextTop = event.currentTarget.scrollTop
-    const delta = nextTop - lastScrollTopRef.current
-    if (delta !== 0) {
-      setChromeProgressDirect(nextTop <= 2 ? 0 : chromeProgressRef.current + delta / 160)
-    }
-    lastScrollTopRef.current = nextTop
-  }
-
-  function handleListWheel(event: WheelEvent<HTMLDivElement>) {
-    if (event.deltaY < 0) {
-      setChromeProgressDirect(chromeProgressRef.current + event.deltaY / 160)
-    }
-  }
-
   if (currentError) {
     return (
       <div className="h-full flex items-center justify-center">
@@ -232,26 +184,13 @@ export function TrendView({ period, sectors, minCorr, onStockSelect }: Props) {
     )
   }
 
-  const topChromeStyle = {
-    maxHeight: 'var(--chrome-top-height, 430px)',
-    opacity: 'var(--chrome-opacity, 1)',
-    transform: 'translateY(var(--chrome-shift, 0px))',
-  }
-  const sectionHeaderStyle = {
-    maxHeight: 'var(--chrome-section-height, 86px)',
-    opacity: 'var(--chrome-opacity, 1)',
-  }
-
   return (
-    <div ref={chromeRootRef} className="h-full min-h-0 px-1.5 py-2 sm:px-4 sm:py-3 lg:px-6 flex flex-col gap-3">
-      <div className="shrink-0 overflow-hidden transition-opacity duration-75" style={topChromeStyle}>
-      <header className="flex items-start justify-between gap-5 flex-wrap">
+    <div className="h-full min-h-0 px-1.5 py-2 sm:px-4 sm:py-3 lg:px-6 flex flex-col gap-2">
+      <header className="shrink-0 grid gap-1.5 border-b border-border/70 pb-1.5">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="min-w-0">
           <p className="text-[11px] text-muted font-mono tracking-[0.12em] uppercase">Trend</p>
-          <h2 className="mt-1 text-[20px] sm:text-[24px] font-semibold text-ink tracking-[-0.6px]">相関トレンド</h2>
-          <p className="mt-1 text-[12px] text-muted leading-relaxed max-w-3xl">
-            短期の相関と長期の相関を比較して、最近つながりが強まった銘柄ペア、弱まった銘柄ペア、逆方向に変わったペアを検知します。
-          </p>
+          <h2 className="mt-0.5 text-[18px] sm:text-[20px] font-semibold text-ink tracking-[-0.35px]">相関トレンド</h2>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap justify-start sm:justify-end">
@@ -259,18 +198,10 @@ export function TrendView({ period, sectors, minCorr, onStockSelect }: Props) {
           <span className="text-[12px] text-muted">vs</span>
           <PeriodBadge label="基準" value={data.periods.long} />
         </div>
-      </header>
-
-      <div className="mt-3 grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 118px), 1fr))' }}>
-        <Metric label="強まった" value={strongerCount.toLocaleString('ja-JP')} tone="pos" />
-        <Metric label="弱まった" value={weakerCount.toLocaleString('ja-JP')} tone="neg" />
-        <Metric label="符号反転" value={signFlipCount.toLocaleString('ja-JP')} />
-        <Metric label="最大変化" value={deltaLabel(maxShift)} tone={maxShift >= 0 ? 'pos' : 'neg'} />
-        <Metric label="表示条件" value={`±${threshold.toFixed(2)}以上`} />
       </div>
 
-      <div className="mt-3 grid min-w-0 gap-2 min-[900px]:grid-cols-[minmax(220px,1fr)_auto_auto]">
-        <label className="h-10 rounded-full bg-paper border border-border px-4 flex items-center gap-2">
+        <div className="grid min-w-0 gap-2 min-[980px]:grid-cols-[minmax(220px,1fr)_auto_minmax(230px,0.55fr)]">
+        <label className="h-9 rounded-full bg-paper border border-border px-3.5 flex items-center gap-2">
           <svg width="14" height="14" viewBox="0 0 15 15" fill="none" className="text-muted shrink-0" aria-hidden>
             <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" strokeWidth="1.5" />
             <path d="M10.5 10.5L13.5 13.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -294,7 +225,7 @@ export function TrendView({ period, sectors, minCorr, onStockSelect }: Props) {
           onChange={setMode}
         />
 
-        <div className="min-w-0 h-10 rounded-full bg-paper border border-border px-3 sm:px-4 flex items-center gap-2 sm:gap-3">
+        <div className="min-w-0 h-9 rounded-full bg-paper border border-border px-3 sm:px-3.5 flex items-center gap-2 sm:gap-3">
           <span className="text-[11px] text-muted whitespace-nowrap">変化幅</span>
           <input
             type="range"
@@ -307,11 +238,19 @@ export function TrendView({ period, sectors, minCorr, onStockSelect }: Props) {
           />
           <span className="text-[12px] font-mono text-ink tabular-nums w-9">{threshold.toFixed(2)}</span>
         </div>
-      </div>
-      </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <CompactMetric label="強化" value={strongerCount.toLocaleString('ja-JP')} tone="pos" />
+          <CompactMetric label="弱化" value={weakerCount.toLocaleString('ja-JP')} tone="neg" />
+          <CompactMetric label="反転" value={signFlipCount.toLocaleString('ja-JP')} />
+          <CompactMetric label="最大" value={deltaLabel(maxShift)} tone={maxShift >= 0 ? 'pos' : 'neg'} />
+          <CompactMetric label="条件" value={`±${threshold.toFixed(2)}`} />
+        </div>
+      </header>
 
       <section className="min-h-0 flex-1 overflow-hidden flex flex-col">
-        <div className="px-1 pb-2 flex flex-wrap items-end justify-between gap-3 sm:gap-4 shrink-0 overflow-hidden transition-opacity duration-75" style={sectionHeaderStyle}>
+        <div className="px-1 pb-2 flex flex-wrap items-end justify-between gap-3 sm:gap-4 shrink-0">
           <div className="min-w-0">
             <p className="text-[10px] text-muted font-mono tracking-[0.14em] uppercase">Pair Monitor</p>
             <h3 className="text-[15px] font-semibold text-ink">{modeLabel(mode)}ペア</h3>
@@ -335,7 +274,7 @@ export function TrendView({ period, sectors, minCorr, onStockSelect }: Props) {
         </div>
 
         {visiblePairs.length ? (
-          <div className="min-h-0 overflow-auto" onScroll={handleListScroll} onWheel={handleListWheel}>
+          <div className="min-h-0 overflow-auto">
             {visiblePairs.map((pair, index) => (
               <TrendRow
                 key={`${pair.stockA.code}-${pair.stockB.code}`}
@@ -357,19 +296,19 @@ export function TrendView({ period, sectors, minCorr, onStockSelect }: Props) {
 
 function PeriodBadge({ label, value }: { label: string; value: Period }) {
   return (
-    <div className="h-10 px-4 rounded-full bg-paper border border-border flex items-center gap-2">
+    <div className="h-9 px-3.5 rounded-full bg-paper border border-border flex items-center gap-2">
       <span className="text-[10px] text-muted font-mono uppercase tracking-[0.08em]">{label}</span>
       <span className="text-[13px] font-semibold text-ink tabular-nums">{value}</span>
     </div>
   )
 }
 
-function Metric({ label, value, tone }: { label: string; value: string; tone?: 'pos' | 'neg' }) {
+function CompactMetric({ label, value, tone }: { label: string; value: string; tone?: 'pos' | 'neg' }) {
   const color = tone === 'pos' ? 'var(--color-pos)' : tone === 'neg' ? 'var(--color-neg)' : 'var(--color-ink)'
   return (
-    <div className="border-t border-border pt-3">
-      <p className="text-[10px] text-muted font-mono tracking-[0.08em] uppercase">{label}</p>
-      <p className="mt-1 text-[18px] font-semibold tabular-nums" style={{ color }}>{value}</p>
+    <div className="h-7 px-2.5 rounded-full bg-paper border border-border flex items-center gap-1.5">
+      <span className="text-[10px] text-muted font-mono tracking-[0.08em] uppercase">{label}</span>
+      <span className="text-[12px] font-semibold font-mono tabular-nums" style={{ color }}>{value}</span>
     </div>
   )
 }
@@ -393,14 +332,14 @@ function SegmentedSwitch<T extends string>({
   onChange: (value: T) => void
 }) {
   return (
-    <div className="max-w-full h-10 flex items-center bg-subtle rounded-full p-1 gap-1 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div className="max-w-full h-9 flex items-center bg-subtle rounded-full p-1 gap-1 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {options.map(option => (
         <button
           key={option.id}
           type="button"
           onClick={() => onChange(option.id)}
           className={cn(
-            'h-8 px-3 sm:px-4 rounded-full text-[12px] font-semibold transition-all cursor-pointer whitespace-nowrap',
+            'h-7 px-3 sm:px-3.5 rounded-full text-[12px] font-semibold transition-all cursor-pointer whitespace-nowrap',
             value === option.id
               ? 'bg-paper text-ink shadow-[0_1px_4px_rgba(0,0,0,0.12)]'
               : 'text-muted hover:text-ink',

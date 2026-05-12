@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
 import { useTheme } from '../../lib/ThemeContext'
 import { fetchSectorIndices } from '../../lib/api'
 import type { SectorData, SectorIndexMeta } from '../../lib/api'
@@ -19,22 +19,294 @@ interface XY {
   y: number
 }
 
-const SECTOR_POSITIONS: Record<string, { cx: number; cy: number }> = {
-  '電気機器': { cx: 0.22, cy: 0.23 },
-  '輸送用機器': { cx: 0.49, cy: 0.18 },
-  '銀行業': { cx: 0.78, cy: 0.24 },
-  '情報・通信業': { cx: 0.18, cy: 0.48 },
-  '医薬品': { cx: 0.40, cy: 0.47 },
-  '化学': { cx: 0.62, cy: 0.47 },
-  '食料品': { cx: 0.20, cy: 0.74 },
-  '機械': { cx: 0.46, cy: 0.76 },
-  '小売業': { cx: 0.33, cy: 0.88 },
-  '不動産業': { cx: 0.76, cy: 0.68 },
-  '電気・ガス業': { cx: 0.70, cy: 0.88 },
+interface GraphEdge {
+  i: number
+  j: number
+  corr: number
 }
+
+interface LayoutOptions {
+  minDistanceScale?: number
+  centerPull?: number
+  spreadScale?: number
+  maxTargetScale?: number
+}
+
+interface DragState {
+  layoutKey: number
+  index: number
+  pointerId: number
+  offsetX: number
+  offsetY: number
+  moved: boolean
+}
+
+interface SuppressClickState {
+  layoutKey: number
+  index: number
+}
+
+const EMPTY_NODE_OVERRIDES: Record<number, XY> = {}
+
+const SECTOR_LAYOUT_ORDER = [
+  '電気機器',
+  '半導体関連',
+  '情報・通信業',
+  '医薬品',
+  '食料品',
+  '小売業',
+  '電気・ガス業',
+  '建設業',
+  '不動産業',
+  '銀行業',
+  '保険業',
+  '証券業',
+  '卸売業（総合商社）',
+  '海運業',
+  '陸運業',
+  '輸送用機器',
+  '機械',
+  '化学',
+]
+
+const MAX_SECTOR_EDGES = 40
+const SECTOR_OVERVIEW_MIN_CORR = 0.46
+const MAX_SECTOR_OVERVIEW_EDGES = 26
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value))
+}
+
+function corrColor(value: number): string {
+  return value >= 0 ? 'var(--color-pos)' : 'var(--color-neg)'
+}
+
+function corrDirection(value: number): string {
+  return value >= 0 ? '正相関' : '逆相関'
+}
+
+function strengthLabel(value: number): string {
+  const abs = Math.abs(value)
+  if (abs >= 0.75) return 'とても強い'
+  if (abs >= 0.55) return '強い'
+  if (abs >= 0.35) return '中くらい'
+  return '弱い'
+}
+
+function edgeStrokeWidth(value: number): number {
+  const abs = Math.abs(value)
+  return clamp(1 + Math.pow(abs, 2.2) * 14, 1.3, 11)
+}
+
+function edgeStrokeOpacity(value: number, active: boolean): number {
+  if (active) return 0.98
+  return clamp(0.12 + Math.pow(Math.abs(value), 1.65) * 0.86, 0.2, 0.9)
+}
+
+function sectorFocusStrokeOpacity(value: number): number {
+  return clamp(0.16 + Math.pow(Math.abs(value), 1.55) * 0.84, 0.22, 0.94)
+}
+
+function sectorFocusStrokeWidth(value: number): number {
+  const abs = Math.abs(value)
+  return clamp(0.9 + Math.pow(abs, 2.15) * 14, 1.2, 11)
+}
+
+function sectorOrderRank(name: string): number {
+  const index = SECTOR_LAYOUT_ORDER.indexOf(name)
+  return index >= 0 ? index : SECTOR_LAYOUT_ORDER.length
+}
+
+function stableUnit(key: string): number {
+  let hash = 2166136261
+  for (let i = 0; i < key.length; i++) {
+    hash ^= key.charCodeAt(i)
+    hash = Math.imul(hash, 16777619)
+  }
+  return (hash >>> 0) / 4294967295
+}
+
+function organicNetworkLayout(
+  count: number,
+  size: { w: number; h: number },
+  hitR: number,
+  edges: GraphEdge[],
+  yOffset = 0,
+  rankAt?: (index: number) => number,
+  options: LayoutOptions = {},
+): XY[] {
+  if (!count || !size.w || !size.h) return []
+
+  const minDistanceScale = options.minDistanceScale ?? 1.45
+  const centerPull = options.centerPull ?? 0.006
+  const spreadScale = options.spreadScale ?? 1
+  const maxTargetScale = options.maxTargetScale ?? 2.25
+  const margin = Math.max(hitR + 18, 66)
+  const center = {
+    x: size.w / 2,
+    y: size.h * (0.48 + yOffset),
+  }
+
+  if (count === 1) return [center]
+  if (count === 2) {
+    const spread = Math.min(size.w * 0.24, 180)
+    return [
+      { x: center.x - spread, y: center.y - Math.min(30, size.h * 0.06) },
+      { x: center.x + spread, y: center.y + Math.min(30, size.h * 0.06) },
+    ]
+  }
+
+  const rx = Math.max(110, Math.min(size.w * 0.39 * spreadScale, size.w / 2 - margin))
+  const ry = Math.max(92, Math.min(size.h * 0.36 * spreadScale, size.h / 2 - margin - 28))
+  const goldenAngle = Math.PI * (3 - Math.sqrt(5))
+  const ordered = Array.from({ length: count }, (_, index) => index)
+    .sort((a, b) => (rankAt?.(a) ?? a) - (rankAt?.(b) ?? b) || a - b)
+  const points: XY[] = Array(count)
+
+  ordered.forEach((index, slot) => {
+    const progress = (slot + 0.5) / count
+    const radius = Math.sqrt(progress) * (0.68 + stableUnit(`r:${count}:${index}`) * 0.24)
+    const angle = -Math.PI / 2 + slot * goldenAngle + (stableUnit(`a:${count}:${index}`) - 0.5) * 0.55
+    points[index] = {
+      x: clamp(center.x + rx * radius * Math.cos(angle), margin, size.w - margin),
+      y: clamp(center.y + ry * radius * Math.sin(angle), margin, size.h - margin - 34),
+    }
+  })
+
+  const layoutEdges = edges
+    .slice()
+    .sort((a, b) => Math.abs(b.corr) - Math.abs(a.corr))
+    .slice(0, Math.max(10, count * 3))
+  const minDistance = Math.max(hitR * minDistanceScale, 42)
+  const iterations = clamp(Math.round(54 + count * 0.7), 60, 110)
+
+  for (let step = 0; step < iterations; step++) {
+    const cooling = 1 - step / iterations
+
+    for (let i = 0; i < count; i++) {
+      for (let j = i + 1; j < count; j++) {
+        const a = points[i]
+        const b = points[j]
+        let dx = b.x - a.x
+        let dy = b.y - a.y
+        let dist = Math.sqrt(dx * dx + dy * dy)
+        if (dist < 0.001) {
+          dx = stableUnit(`dx:${i}:${j}`) - 0.5
+          dy = stableUnit(`dy:${i}:${j}`) - 0.5
+          dist = Math.sqrt(dx * dx + dy * dy)
+        }
+        const nx = dx / dist
+        const ny = dy / dist
+        const overlap = minDistance - dist
+        const softRepel = Math.min(24, (minDistance * minDistance) / (dist * dist)) * 0.24 * cooling
+        const force = overlap > 0 ? overlap * 0.22 * cooling + softRepel : softRepel
+        a.x -= nx * force
+        a.y -= ny * force
+        b.x += nx * force
+        b.y += ny * force
+      }
+    }
+
+    for (const edge of layoutEdges) {
+      const a = points[edge.i]
+      const b = points[edge.j]
+      if (!a || !b) continue
+      const abs = Math.abs(edge.corr)
+      const target = clamp(Math.min(size.w, size.h) * (0.33 - abs * 0.12), minDistance * 1.08, minDistance * maxTargetScale)
+      const dx = b.x - a.x
+      const dy = b.y - a.y
+      const dist = Math.max(0.001, Math.sqrt(dx * dx + dy * dy))
+      const pull = (dist - target) * (0.012 + abs * 0.02) * cooling
+      const nx = dx / dist
+      const ny = dy / dist
+      a.x += nx * pull
+      a.y += ny * pull
+      b.x -= nx * pull
+      b.y -= ny * pull
+    }
+
+    for (let i = 0; i < count; i++) {
+      const point = points[i]
+      point.x += (center.x - point.x) * centerPull * cooling
+      point.y += (center.y - point.y) * centerPull * cooling
+      point.x = clamp(point.x, margin, size.w - margin)
+      point.y = clamp(point.y, margin, size.h - margin - 34)
+    }
+  }
+
+  for (let pass = 0; pass < 24; pass++) {
+    for (let i = 0; i < count; i++) {
+      for (let j = i + 1; j < count; j++) {
+        const a = points[i]
+        const b = points[j]
+        let dx = b.x - a.x
+        let dy = b.y - a.y
+        let dist = Math.sqrt(dx * dx + dy * dy)
+        if (dist < 0.001) {
+          dx = stableUnit(`final-dx:${i}:${j}`) - 0.5
+          dy = stableUnit(`final-dy:${i}:${j}`) - 0.5
+          dist = Math.max(0.001, Math.sqrt(dx * dx + dy * dy))
+        }
+        const overlap = minDistance - dist
+        if (overlap <= 0) continue
+        const nx = dx / dist
+        const ny = dy / dist
+        const push = overlap * 0.5
+        a.x -= nx * push
+        a.y -= ny * push
+        b.x += nx * push
+        b.y += ny * push
+      }
+    }
+    for (const point of points) {
+      point.x += (center.x - point.x) * centerPull * 0.35
+      point.y += (center.y - point.y) * centerPull * 0.35
+      point.x = clamp(point.x, margin, size.w - margin)
+      point.y = clamp(point.y, margin, size.h - margin - 34)
+    }
+  }
+
+  return points
+}
+
+function connectionSummary(
+  edges: GraphEdge[],
+  nodeIndex: number,
+  nameAt: (index: number) => string,
+): { name: string; corr: number }[] {
+  return edges
+    .filter(edge => edge.i === nodeIndex || edge.j === nodeIndex)
+    .sort((a, b) => Math.abs(b.corr) - Math.abs(a.corr))
+    .slice(0, 3)
+    .map(edge => {
+      const other = edge.i === nodeIndex ? edge.j : edge.i
+      return { name: nameAt(other), corr: edge.corr }
+    })
+}
+
+function ensureConnectedEdges(edges: GraphEdge[], matrix: number[][], count: number): GraphEdge[] {
+  const byKey = new Map(edges.map(edge => [edgeKey(edge.i, edge.j), edge]))
+
+  for (let node = 0; node < count; node++) {
+    const hasConnection = [...byKey.values()].some(edge => edge.i === node || edge.j === node)
+    if (hasConnection) continue
+
+    let strongest: GraphEdge | null = null
+    for (let other = 0; other < count; other++) {
+      if (other === node) continue
+      const i = Math.min(node, other)
+      const j = Math.max(node, other)
+      const corr = matrix[i]?.[j] ?? matrix[j]?.[i] ?? 0
+      const candidate = { i, j, corr }
+      if (!strongest || Math.abs(candidate.corr) > Math.abs(strongest.corr)) {
+        strongest = candidate
+      }
+    }
+
+    if (strongest) byKey.set(edgeKey(strongest.i, strongest.j), strongest)
+  }
+
+  return [...byKey.values()]
 }
 
 function splitLabel(name: string): [string, string?] {
@@ -60,6 +332,93 @@ function useElementSize() {
   }, [])
 
   return { ref, size }
+}
+
+function pointerPosition(event: PointerEvent, size: { w: number; h: number }): XY {
+  const target = event.currentTarget as SVGElement
+  const svg = target instanceof SVGSVGElement ? target : target.ownerSVGElement
+  const rect = (svg ?? target).getBoundingClientRect()
+  return {
+    x: (event.clientX - rect.left) * (size.w / Math.max(rect.width, 1)),
+    y: (event.clientY - rect.top) * (size.h / Math.max(rect.height, 1)),
+  }
+}
+
+function useDraggableNodes(baseNodes: XY[], size: { w: number; h: number }, hitR: number) {
+  const layoutKey = baseNodes.length
+  const [overridesByKey, setOverridesByKey] = useState<Record<number, Record<number, XY>>>({})
+  const [drag, setDrag] = useState<DragState | null>(null)
+  const [suppressClick, setSuppressClick] = useState<SuppressClickState | null>(null)
+  const overrides = overridesByKey[layoutKey] ?? EMPTY_NODE_OVERRIDES
+  const activeDrag = drag?.layoutKey === layoutKey ? drag : null
+
+  const margin = Math.max(hitR + 8, 58)
+  const nodes = useMemo(
+    () => baseNodes.map((node, index) => {
+      const saved = overrides[index]
+      if (!saved || !size.w || !size.h) return node
+      return {
+        x: clamp(saved.x * size.w, margin, size.w - margin),
+        y: clamp(saved.y * size.h, margin, size.h - margin - 34),
+      }
+    }),
+    [baseNodes, overrides, size, margin],
+  )
+
+  const beginDrag = (index: number, event: PointerEvent<SVGGElement>) => {
+    if (!nodes[index] || !size.w || !size.h) return
+    event.preventDefault()
+    event.stopPropagation()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    const point = pointerPosition(event, size)
+    setDrag({
+      layoutKey,
+      index,
+      pointerId: event.pointerId,
+      offsetX: point.x - nodes[index].x,
+      offsetY: point.y - nodes[index].y,
+      moved: false,
+    })
+  }
+
+  const moveDrag = (event: PointerEvent<SVGSVGElement>) => {
+    if (!activeDrag || activeDrag.pointerId !== event.pointerId || !size.w || !size.h) return
+    event.preventDefault()
+    const point = pointerPosition(event, size)
+    const x = clamp(point.x - activeDrag.offsetX, margin, size.w - margin)
+    const y = clamp(point.y - activeDrag.offsetY, margin, size.h - margin - 34)
+    const previous = nodes[activeDrag.index] ?? { x, y }
+    const moved = activeDrag.moved || Math.hypot(previous.x - x, previous.y - y) > 3
+    setOverridesByKey(prev => ({
+      ...prev,
+      [layoutKey]: {
+        ...(prev[layoutKey] ?? {}),
+        [activeDrag.index]: { x: x / size.w, y: y / size.h },
+      },
+    }))
+    if (moved !== activeDrag.moved) setDrag({ ...activeDrag, moved })
+  }
+
+  const endDrag = (event: PointerEvent<SVGSVGElement>) => {
+    if (!activeDrag || activeDrag.pointerId !== event.pointerId) return
+    if (activeDrag.moved) setSuppressClick({ layoutKey, index: activeDrag.index })
+    setDrag(null)
+  }
+
+  const shouldSuppressClick = (index: number): boolean => {
+    if (suppressClick?.layoutKey !== layoutKey || suppressClick.index !== index) return false
+    setSuppressClick(null)
+    return true
+  }
+
+  return {
+    nodes,
+    draggingIndex: activeDrag?.index ?? null,
+    beginDrag,
+    moveDrag,
+    endDrag,
+    shouldSuppressClick,
+  }
 }
 
 function sectorSubmatrix(
@@ -118,42 +477,74 @@ function SectorNetwork({
   const [hoveredEdgeKey, setHoveredEdgeKey] = useState<string | null>(null)
   const { isDark } = useTheme()
   const N = sectors.length
-  const nodeR = clamp(Math.min(size.w, size.h) * 0.065, 30, 54)
+  const nodeR = clamp(Math.min(size.w, size.h) * 0.058, 28, 46)
   const hitR = nodeR + 12
 
-  const nodes = useMemo<XY[]>(() => {
-    if (!size.w || !size.h) return []
-    const margin = Math.max(hitR + 8, 64)
-    return sectors.map((sector, i) => {
-      const fixed = SECTOR_POSITIONS[sector.name]
-      if (fixed) {
-        return {
-          x: clamp(fixed.cx * size.w, margin, size.w - margin),
-          y: clamp(fixed.cy * size.h, margin, size.h - margin),
-        }
-      }
-      const a = (2 * Math.PI * i) / N - Math.PI / 2
-      return {
-        x: size.w / 2 + size.w * 0.34 * Math.cos(a),
-        y: size.h / 2 + size.h * 0.32 * Math.sin(a),
-      }
-    })
-  }, [size, sectors, N, hitR])
-
   const edges = useMemo(() => {
-    const result: { i: number; j: number; corr: number }[] = []
-    const threshold = Math.max(minCorr, 0.18)
+    const result: GraphEdge[] = []
+    const threshold = Math.max(minCorr, SECTOR_OVERVIEW_MIN_CORR)
     for (let i = 0; i < N; i++) {
       for (let j = i + 1; j < N; j++) {
         const c = sectorMatrix[i]?.[j] ?? 0
         if (Math.abs(c) >= threshold) result.push({ i, j, corr: c })
       }
     }
-    return result
+    const strongest = result
+      .sort((a, b) => Math.abs(a.corr) - Math.abs(b.corr))
+      .slice(-MAX_SECTOR_OVERVIEW_EDGES)
+    return ensureConnectedEdges(strongest, sectorMatrix, N)
+      .sort((a, b) => Math.abs(a.corr) - Math.abs(b.corr))
   }, [N, sectorMatrix, minCorr])
+
+  const layoutEdges = useMemo(
+    () => edges.slice().sort((a, b) => Math.abs(a.corr) - Math.abs(b.corr)).slice(-MAX_SECTOR_EDGES),
+    [edges],
+  )
+
+  const baseNodes = useMemo<XY[]>(() => {
+    if (!size.w || !size.h) return []
+    return organicNetworkLayout(
+      N,
+      size,
+      hitR,
+      layoutEdges,
+      -0.01,
+      index => sectorOrderRank(sectors[index]?.name ?? ''),
+      {
+        minDistanceScale: 2.08,
+        centerPull: 0.012,
+        spreadScale: 0.92,
+        maxTargetScale: 1.75,
+      },
+    )
+  }, [size, sectors, N, hitR, layoutEdges])
+  const {
+    nodes,
+    draggingIndex,
+    beginDrag,
+    moveDrag,
+    endDrag,
+    shouldSuppressClick,
+  } = useDraggableNodes(baseNodes, size, hitR)
+
+  const focusEdges = useMemo<GraphEdge[]>(() => {
+    if (hoveredNode === null) return []
+    return sectors
+      .map((_, other) => {
+        if (other === hoveredNode) return null
+        const i = Math.min(hoveredNode, other)
+        const j = Math.max(hoveredNode, other)
+        return { i, j, corr: sectorMatrix[i]?.[j] ?? sectorMatrix[j]?.[i] ?? 0 }
+      })
+      .filter((edge): edge is GraphEdge => edge !== null)
+      .sort((a, b) => Math.abs(a.corr) - Math.abs(b.corr))
+  }, [hoveredNode, sectors, sectorMatrix])
 
   const hoveredEdge = parseEdgeKey(hoveredEdgeKey)
   const edgeCorr = hoveredEdge ? sectorMatrix[hoveredEdge.i]?.[hoveredEdge.j] ?? 0 : null
+  const hoveredLinks = hoveredNode !== null
+    ? connectionSummary(focusEdges, hoveredNode, index => sectors[index]?.name ?? '')
+    : []
   const nodeShadow = isDark
     ? 'drop-shadow(0 3px 8px rgba(0,0,0,0.46))'
     : 'drop-shadow(0 3px 8px rgba(0,0,0,0.14))'
@@ -161,12 +552,20 @@ function SectorNetwork({
   return (
     <div ref={ref} className="w-full h-full relative overflow-hidden">
       {size.w > 0 && (
-        <svg width={size.w} height={size.h} style={{ display: 'block' }}>
+        <svg
+          width={size.w}
+          height={size.h}
+          style={{ display: 'block', touchAction: 'none' }}
+          onPointerMove={moveDrag}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          onPointerLeave={endDrag}
+        >
           {edges.map(({ i, j, corr }) => {
             if (!nodes[i] || !nodes[j]) return null
-            const abs = Math.abs(corr)
             const key = edgeKey(i, j)
-            const active = hoveredNode === i || hoveredNode === j || hoveredEdgeKey === key
+            const dimmedByFocus = hoveredNode !== null && hoveredNode !== i && hoveredNode !== j
+            const active = !dimmedByFocus && (hoveredNode === i || hoveredNode === j || hoveredEdgeKey === key)
             return (
               <g key={key}>
                 <line
@@ -174,9 +573,21 @@ function SectorNetwork({
                   y1={nodes[i].y}
                   x2={nodes[j].x}
                   y2={nodes[j].y}
-                  stroke={corr >= 0 ? 'var(--color-pos)' : 'var(--color-neg)'}
-                  strokeWidth={Math.max(1.2, abs * 7)}
-                  strokeOpacity={active ? 0.82 : 0.10 + abs * 0.34}
+                  stroke="var(--color-paper)"
+                  strokeWidth={edgeStrokeWidth(corr) + 4}
+                  strokeOpacity={dimmedByFocus ? 0.14 : active ? 0.72 : 0.34}
+                  strokeLinecap="round"
+                  pointerEvents="none"
+                />
+                <line
+                  x1={nodes[i].x}
+                  y1={nodes[i].y}
+                  x2={nodes[j].x}
+                  y2={nodes[j].y}
+                  stroke={corrColor(corr)}
+                  strokeWidth={edgeStrokeWidth(corr)}
+                  strokeOpacity={dimmedByFocus ? 0.08 : edgeStrokeOpacity(corr, active)}
+                  strokeDasharray={corr < 0 ? '7 6' : undefined}
                   strokeLinecap="round"
                   pointerEvents="none"
                   style={{ transition: 'stroke-opacity 0.12s ease' }}
@@ -191,6 +602,37 @@ function SectorNetwork({
                   pointerEvents="stroke"
                   onMouseEnter={() => setHoveredEdgeKey(key)}
                   onMouseLeave={() => setHoveredEdgeKey(null)}
+                />
+              </g>
+            )
+          })}
+
+          {focusEdges.map(({ i, j, corr }) => {
+            if (!nodes[i] || !nodes[j]) return null
+            const key = `focus-${edgeKey(i, j)}`
+            return (
+              <g key={key} pointerEvents="none">
+                <line
+                  x1={nodes[i].x}
+                  y1={nodes[i].y}
+                  x2={nodes[j].x}
+                  y2={nodes[j].y}
+                  stroke="var(--color-paper)"
+                  strokeWidth={sectorFocusStrokeWidth(corr) + 5}
+                  strokeOpacity={0.72}
+                  strokeLinecap="round"
+                />
+                <line
+                  x1={nodes[i].x}
+                  y1={nodes[i].y}
+                  x2={nodes[j].x}
+                  y2={nodes[j].y}
+                  stroke={corrColor(corr)}
+                  strokeWidth={sectorFocusStrokeWidth(corr)}
+                  strokeOpacity={sectorFocusStrokeOpacity(corr)}
+                  strokeDasharray={corr < 0 ? '7 6' : undefined}
+                  strokeLinecap="round"
+                  style={{ transition: 'stroke-opacity 0.12s ease, stroke-width 0.12s ease' }}
                 />
               </g>
             )
@@ -211,7 +653,11 @@ function SectorNetwork({
                   setHoveredEdgeKey(null)
                 }}
                 onMouseLeave={() => setHoveredNode(null)}
-                onClick={() => onSelect(sector.name)}
+                onPointerDown={(event) => beginDrag(i, event)}
+                onClick={() => {
+                  if (shouldSuppressClick(i)) return
+                  onSelect(sector.name)
+                }}
               >
                 <circle r={hitR} fill="transparent" pointerEvents="all" />
                 <circle
@@ -222,7 +668,7 @@ function SectorNetwork({
                   pointerEvents="none"
                   style={{
                     filter: nodeShadow,
-                    transition: 'r 0.12s ease, stroke-width 0.12s ease',
+                    transition: draggingIndex === i ? 'none' : 'r 0.12s ease, stroke-width 0.12s ease',
                   }}
                 />
                 {line2 ? (
@@ -245,22 +691,20 @@ function SectorNetwork({
 
       <div className="absolute bottom-12 left-0 right-0 flex justify-center pointer-events-none">
         {hoveredEdge && edgeCorr !== null ? (
-          <div className="bg-paper/90 backdrop-blur-sm rounded-xl px-4 py-2 shadow-sm border border-border/50">
-            <p className="text-[12px] font-mono">
-              <span className="font-medium text-ink">{sectors[hoveredEdge.i]?.name}</span>
-              <span className="text-muted mx-2">x</span>
-              <span className="font-medium text-ink">{sectors[hoveredEdge.j]?.name}</span>
-              <span className="text-muted mx-3">|</span>
-              <span className="font-semibold" style={{ color: edgeCorr >= 0 ? 'var(--color-pos)' : 'var(--color-neg)' }}>
-                {edgeCorr >= 0 ? '+' : ''}{edgeCorr.toFixed(2)}
-              </span>
-            </p>
-          </div>
+          <CorrelationPanel
+            left={sectors[hoveredEdge.i]?.name ?? ''}
+            right={sectors[hoveredEdge.j]?.name ?? ''}
+            corr={edgeCorr}
+          />
+        ) : hoveredNode !== null ? (
+          <NodePanel
+            title={sectors[hoveredNode]?.name ?? ''}
+            subtitle="セクター"
+            links={hoveredLinks}
+          />
         ) : (
           <p className="text-[12px] text-muted font-mono">
-            {hoveredNode !== null
-              ? `${sectors[hoveredNode]?.name} をクリックして銘柄ネットワークへ`
-              : 'セクターをクリックすると銘柄ネットワークに移動します'}
+            セクターをクリックすると銘柄ネットワークに移動します
           </p>
         )}
       </div>
@@ -292,19 +736,8 @@ function StockNetwork({
   const nodeR = clamp(Math.min(size.w, size.h) * 0.052, 22, 38)
   const hitR = nodeR + 10
 
-  const nodes = useMemo<XY[]>(() => {
-    if (!size.w || !size.h) return []
-    const cx = size.w / 2
-    const cy = size.h / 2 + 8
-    const r = Math.max(90, Math.min(size.w * 0.35, size.h * 0.32))
-    return stocks.map((_, i) => {
-      const a = (2 * Math.PI * i) / Math.max(N, 1) - Math.PI / 2
-      return { x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) }
-    })
-  }, [size, stocks, N])
-
   const edges = useMemo(() => {
-    const result: { i: number; j: number; corr: number }[] = []
+    const result: GraphEdge[] = []
     const threshold = Math.max(minCorr, 0)
     for (let i = 0; i < N; i++) {
       for (let j = i + 1; j < N; j++) {
@@ -312,12 +745,28 @@ function StockNetwork({
         if (Math.abs(c) >= threshold) result.push({ i, j, corr: c })
       }
     }
-    return result
+    return result.sort((a, b) => Math.abs(a.corr) - Math.abs(b.corr))
   }, [N, matrix, minCorr])
+
+  const baseNodes = useMemo<XY[]>(() => {
+    if (!size.w || !size.h) return []
+    return organicNetworkLayout(N, size, hitR, edges, 0.01)
+  }, [size, N, hitR, edges])
+  const {
+    nodes,
+    draggingIndex,
+    beginDrag,
+    moveDrag,
+    endDrag,
+    shouldSuppressClick,
+  } = useDraggableNodes(baseNodes, size, hitR)
 
   const hoveredEdge = parseEdgeKey(hoveredEdgeKey)
   const hoveredCorr = hoveredEdge ? matrix[hoveredEdge.i]?.[hoveredEdge.j] ?? 0 : null
   const hoveredStock = hoveredNode !== null ? stocks[hoveredNode] : null
+  const hoveredLinks = hoveredNode !== null
+    ? connectionSummary(edges, hoveredNode, index => stocks[index]?.label ?? '')
+    : []
   const nodeShadow = isDark
     ? 'drop-shadow(0 2px 7px rgba(0,0,0,0.48))'
     : 'drop-shadow(0 2px 6px rgba(0,0,0,0.12))'
@@ -346,10 +795,17 @@ function StockNetwork({
       </div>
 
       {size.w > 0 && (
-        <svg width={size.w} height={size.h} style={{ display: 'block' }}>
+        <svg
+          width={size.w}
+          height={size.h}
+          style={{ display: 'block', touchAction: 'none' }}
+          onPointerMove={moveDrag}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          onPointerLeave={endDrag}
+        >
           {edges.map(({ i, j, corr }) => {
             if (!nodes[i] || !nodes[j]) return null
-            const abs = Math.abs(corr)
             const key = edgeKey(i, j)
             const active = hoveredEdgeKey === key || hoveredNode === i || hoveredNode === j
             return (
@@ -359,9 +815,21 @@ function StockNetwork({
                   y1={nodes[i].y}
                   x2={nodes[j].x}
                   y2={nodes[j].y}
-                  stroke={corr >= 0 ? 'var(--color-pos)' : 'var(--color-neg)'}
-                  strokeWidth={Math.max(1, abs * 6)}
-                  strokeOpacity={active ? 0.9 : 0.14 + abs * 0.44}
+                  stroke="var(--color-paper)"
+                  strokeWidth={edgeStrokeWidth(corr) + 4}
+                  strokeOpacity={active ? 0.72 : 0.38}
+                  strokeLinecap="round"
+                  pointerEvents="none"
+                />
+                <line
+                  x1={nodes[i].x}
+                  y1={nodes[i].y}
+                  x2={nodes[j].x}
+                  y2={nodes[j].y}
+                  stroke={corrColor(corr)}
+                  strokeWidth={edgeStrokeWidth(corr)}
+                  strokeOpacity={edgeStrokeOpacity(corr, active)}
+                  strokeDasharray={corr < 0 ? '7 6' : undefined}
                   strokeLinecap="round"
                   pointerEvents="none"
                   style={{ transition: 'stroke-opacity 0.12s ease' }}
@@ -394,7 +862,11 @@ function StockNetwork({
                   setHoveredEdgeKey(null)
                 }}
                 onMouseLeave={() => setHoveredNode(null)}
-                onClick={() => onStockSelect(stock)}
+                onPointerDown={(event) => beginDrag(i, event)}
+                onClick={() => {
+                  if (shouldSuppressClick(i)) return
+                  onStockSelect(stock)
+                }}
               >
                 <circle r={hitR} fill="transparent" pointerEvents="all" />
                 <circle
@@ -405,7 +877,7 @@ function StockNetwork({
                   pointerEvents="none"
                   style={{
                     filter: nodeShadow,
-                    transition: 'r 0.12s ease, stroke-width 0.12s ease',
+                    transition: draggingIndex === i ? 'none' : 'r 0.12s ease, stroke-width 0.12s ease',
                   }}
                 />
                 <text
@@ -434,25 +906,17 @@ function StockNetwork({
 
       <div className="absolute bottom-12 left-0 right-0 flex justify-center pointer-events-none">
         {hoveredEdge && hoveredCorr !== null ? (
-          <div className="bg-paper/90 backdrop-blur-sm rounded-xl px-4 py-2 shadow-sm border border-border/50">
-            <p className="text-[12px] font-mono">
-              <span className="font-medium text-ink">{stocks[hoveredEdge.i].name}</span>
-              <span className="text-muted mx-2">x</span>
-              <span className="font-medium text-ink">{stocks[hoveredEdge.j].name}</span>
-              <span className="text-muted mx-3">|</span>
-              <span className="font-semibold" style={{ color: hoveredCorr >= 0 ? 'var(--color-pos)' : 'var(--color-neg)' }}>
-                {hoveredCorr >= 0 ? '+' : ''}{hoveredCorr.toFixed(2)}
-              </span>
-            </p>
-          </div>
+          <CorrelationPanel
+            left={stocks[hoveredEdge.i].name}
+            right={stocks[hoveredEdge.j].name}
+            corr={hoveredCorr}
+          />
         ) : hoveredStock ? (
-          <div className="bg-paper/90 backdrop-blur-sm rounded-xl px-4 py-2 shadow-sm border border-border/50">
-            <p className="text-[12px] font-mono">
-              <span className="font-semibold text-ink">{hoveredStock.label}</span>
-              <span className="text-muted mx-2">|</span>
-              <span className="text-ink">{hoveredStock.name}</span>
-            </p>
-          </div>
+          <NodePanel
+            title={hoveredStock.label}
+            subtitle={hoveredStock.name}
+            links={hoveredLinks}
+          />
         ) : (
           <p className="text-[12px] text-muted font-mono">ノードをホバーすると接続を強調、エッジをホバーすると相関値を表示</p>
         )}
@@ -462,18 +926,108 @@ function StockNetwork({
   )
 }
 
+function StrengthMeter({ value }: { value: number }) {
+  const abs = Math.abs(value)
+  return (
+    <div className="h-2 w-28 rounded-full bg-subtle overflow-hidden">
+      <div
+        className="h-full rounded-full"
+        style={{
+          width: `${clamp(abs * 100, 6, 100)}%`,
+          backgroundColor: corrColor(value),
+        }}
+      />
+    </div>
+  )
+}
+
+function CorrelationPanel({ left, right, corr }: { left: string; right: string; corr: number }) {
+  return (
+    <div className="bg-paper/90 backdrop-blur-sm rounded-xl px-4 py-3 shadow-sm border border-border/50 min-w-[280px]">
+      <div className="flex items-center gap-2 text-[12px] font-mono min-w-0">
+        <span className="font-medium text-ink truncate">{left}</span>
+        <span className="text-muted shrink-0">x</span>
+        <span className="font-medium text-ink truncate">{right}</span>
+      </div>
+      <div className="mt-2 flex items-center justify-between gap-4">
+        <div className="flex items-baseline gap-2">
+          <span className="text-[13px] font-semibold" style={{ color: corrColor(corr) }}>
+            {strengthLabel(corr)}
+          </span>
+          <span className="text-[11px] text-muted">
+            {corrDirection(corr)}
+          </span>
+        </div>
+        <StrengthMeter value={corr} />
+      </div>
+    </div>
+  )
+}
+
+function NodePanel({
+  title,
+  subtitle,
+  links,
+}: {
+  title: string
+  subtitle: string
+  links: { name: string; corr: number }[]
+}) {
+  return (
+    <div className="bg-paper/90 backdrop-blur-sm rounded-xl px-4 py-3 shadow-sm border border-border/50 min-w-[260px] max-w-[360px]">
+      <div className="flex items-baseline gap-2 min-w-0">
+        <span className="text-[13px] font-semibold text-ink truncate">{title}</span>
+        <span className="text-[11px] text-muted truncate">{subtitle}</span>
+      </div>
+      {links.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {links.map(link => (
+            <span
+              key={`${link.name}-${link.corr}`}
+              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg px-2 py-1 text-[11px]"
+            >
+              <span className="text-muted max-w-[96px] truncate">{link.name}</span>
+              <span className="font-semibold" style={{ color: corrColor(link.corr) }}>
+                {strengthLabel(link.corr)}
+              </span>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function Legend() {
   return (
-    <div className="absolute bottom-3 left-3 right-3 flex flex-wrap justify-center gap-x-5 gap-y-1 pointer-events-none">
-      <div className="flex items-center gap-1.5">
-        <span className="w-5 h-[2px] rounded-full" style={{ backgroundColor: 'var(--color-pos)' }} />
-        <span className="text-[10px] text-muted font-mono">正の相関</span>
+    <div className="absolute bottom-3 left-0 right-0 flex justify-center pointer-events-none">
+      <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 rounded-full border border-border/60 bg-paper/90 backdrop-blur-sm px-4 py-2 shadow-sm">
+        <LegendLine label="弱" corr={0.3} />
+        <LegendLine label="中" corr={0.55} />
+        <LegendLine label="強" corr={0.82} />
+        <LegendLine label="逆" corr={-0.65} dashed />
       </div>
-      <div className="flex items-center gap-1.5">
-        <span className="w-5 h-[2px] rounded-full" style={{ backgroundColor: 'var(--color-neg)' }} />
-        <span className="text-[10px] text-muted font-mono">負の相関</span>
-      </div>
-      <span className="text-[10px] text-muted font-mono">線の太さ = 相関の強さ</span>
+    </div>
+  )
+}
+
+function LegendLine({ label, corr, dashed }: { label: string; corr: number; dashed?: boolean }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <svg width="36" height="10" aria-hidden>
+        <line
+          x1="2"
+          y1="5"
+          x2="34"
+          y2="5"
+          stroke={corrColor(corr)}
+          strokeWidth={edgeStrokeWidth(corr)}
+          strokeLinecap="round"
+          strokeDasharray={dashed ? '6 5' : undefined}
+          opacity={0.86}
+        />
+      </svg>
+      <span className="text-[10px] text-muted font-mono">{label}</span>
     </div>
   )
 }

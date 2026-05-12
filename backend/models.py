@@ -25,6 +25,17 @@ class PairData(BaseModel):
     corr: float
 
 
+class StockCorrelationPeer(BaseModel):
+    stock: StockInfo
+    corr: float
+
+
+class StockCorrelationResponse(BaseModel):
+    base: StockInfo
+    period: str
+    peers: list[StockCorrelationPeer]
+
+
 class ChartData(BaseModel):
     code: str
     dates: list[str]

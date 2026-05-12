@@ -1,19 +1,21 @@
-import { useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
 import { ThemeContext } from './lib/ThemeContext'
 import { Header } from './components/layout/Header'
 import { LoadingView, ErrorView } from './components/layout/StatusViews'
 import { DataSummaryBar } from './components/layout/DataSummaryBar'
 import { HomeView } from './components/home/HomeView'
-import { TrendView } from './components/charts/TrendView'
-import { SectorHeatmaps } from './components/charts/SectorHeatmaps'
-import { NetworkGraph } from './components/charts/NetworkGraph'
-import { RankingView } from './components/charts/RankingView'
-import { ChartView } from './components/charts/ChartView'
-import { MacroHeatmap } from './components/charts/MacroHeatmap'
 import { TABS, type View } from './components/layout/tabConfig'
-import { DEFAULT_FILTER, type Period, type FilterState } from './types/filter'
+import type { Period } from './types/filter'
 import { fetchSectors, fetchCorrelation, fetchMacro, fetchHealth, type SectorData, type CorrelationResponse, type MacroResponse, type HealthResponse } from './lib/api'
 import type { StockInfo } from './types/stock'
+
+const TrendView = lazy(() => import('./components/charts/TrendView').then(module => ({ default: module.TrendView })))
+const SectorHeatmaps = lazy(() => import('./components/charts/SectorHeatmaps').then(module => ({ default: module.SectorHeatmaps })))
+const NetworkGraph = lazy(() => import('./components/charts/NetworkGraph').then(module => ({ default: module.NetworkGraph })))
+const RankingView = lazy(() => import('./components/charts/RankingView').then(module => ({ default: module.RankingView })))
+const StockCorrelationView = lazy(() => import('./components/charts/StockCorrelationView').then(module => ({ default: module.StockCorrelationView })))
+const ChartView = lazy(() => import('./components/charts/ChartView').then(module => ({ default: module.ChartView })))
+const MacroHeatmap = lazy(() => import('./components/charts/MacroHeatmap').then(module => ({ default: module.MacroHeatmap })))
 
 interface MarketState {
   period: Period
@@ -25,6 +27,7 @@ interface MarketState {
 interface MacroState {
   period: Period
   data: MacroResponse | null
+  error: string | null
 }
 
 type PeriodByView = Partial<Record<View, Period>>
@@ -32,12 +35,20 @@ type MarketCache = Partial<Record<Period, MarketState>>
 type MacroCache = Partial<Record<Period, MacroState>>
 
 const EMPTY_SECTORS: SectorData[] = []
+const MIN_CORR = 0
 const VIEW_LABELS = Object.fromEntries(TABS.map(tab => [tab.id, tab.label])) as Record<View, string>
+
+function AnimatedTabContent({ children }: { children: ReactNode }) {
+  return (
+    <div className="h-full min-h-0 tab-panel-motion">
+      {children}
+    </div>
+  )
+}
 
 function AppInner() {
   const [currentView, setCurrentView] = useState<View>('home')
   const [periodByView, setPeriodByView] = useState<PeriodByView>({ home: '6M' })
-  const [filter] = useState<FilterState>(DEFAULT_FILTER)
   const [chartInitialStock, setChartInitialStock] = useState<StockInfo | null>(null)
   const [chartReturnView, setChartReturnView] = useState<View | null>(null)
   const [marketCache, setMarketCache] = useState<MarketCache>({})
@@ -92,12 +103,15 @@ function AppInner() {
     fetchMacro(period)
       .then(data => {
         if (!cancelled) {
-          setMacroCache(prev => ({ ...prev, [period]: { period, data } }))
+          setMacroCache(prev => ({ ...prev, [period]: { period, data, error: null } }))
         }
       })
-      .catch(() => {
+      .catch((err: Error) => {
         if (!cancelled) {
-          setMacroCache(prev => ({ ...prev, [period]: { period, data: null } }))
+          setMacroCache(prev => ({
+            ...prev,
+            [period]: { period, data: null, error: err.message || 'マクロデータを取得できませんでした' },
+          }))
         }
       })
     return () => { cancelled = true }
@@ -109,93 +123,97 @@ function AppInner() {
   const correlation = market?.correlation ?? null
   const error = market?.error ?? null
 
-  const sectorNames = useMemo(() => sectors.map(s => s.name), [sectors])
-  const effectiveFilter = useMemo<FilterState>(() => {
-    if (!sectorNames.length) return filter
-    const selected = filter.selectedSectors.filter(name => sectorNames.includes(name))
-    return {
-      ...filter,
-      selectedSectors: selected.length ? selected : sectorNames,
-    }
-  }, [filter, sectorNames])
-
-  const filteredSectors = useMemo(
-    () => sectors.filter(s => effectiveFilter.selectedSectors.includes(s.name)),
-    [sectors, effectiveFilter.selectedSectors],
-  )
-
-  const filteredCorrelation = useMemo(() => {
-    if (currentView !== 'network') return null
-    if (!correlation) return null
-    const selectedCodes = new Set(filteredSectors.flatMap(s => s.stocks.map(st => st.code)))
-    if (selectedCodes.size === correlation.stocks.length) return correlation
-    const idx = correlation.stocks
-      .map((s, i) => (selectedCodes.has(s.code) ? i : -1))
-      .filter(i => i >= 0)
-    return {
-      stocks: idx.map(i => correlation.stocks[i]),
-      matrix: idx.map(i => idx.map(j => correlation.matrix[i][j])),
-    }
-  }, [currentView, correlation, filteredSectors])
+  const networkCorrelation = currentView === 'network' ? correlation : null
 
   function renderMain() {
     if (currentView === 'home') {
-      return <HomeView onNavigate={handleViewChange} sectors={sectors} correlation={correlation} health={health} period={period} />
+      return (
+        <AnimatedTabContent>
+          <HomeView onNavigate={handleViewChange} sectors={sectors} correlation={correlation} health={health} period={period} />
+        </AnimatedTabContent>
+      )
+    }
+    if (currentView === 'stockcorr') {
+      return (
+        <AnimatedTabContent>
+          <StockCorrelationView
+            period={period}
+            onPeriodChange={setCurrentPeriod}
+            sectors={sectors}
+            onStockSelect={handleSearchSelect}
+          />
+        </AnimatedTabContent>
+      )
     }
     if (isLoading) return <LoadingView />
     if (error) return <ErrorView message={error} />
 
     if (currentView === 'trend') {
       return (
-        <TrendView
-          period={period}
-          sectors={filteredSectors}
-          minCorr={effectiveFilter.minCorr}
-          onStockSelect={handleSearchSelect}
-        />
+        <AnimatedTabContent>
+          <TrendView
+            period={period}
+            sectors={sectors}
+            minCorr={MIN_CORR}
+            onStockSelect={handleSearchSelect}
+          />
+        </AnimatedTabContent>
       )
     }
     if (currentView === 'heatmap') {
-      return <SectorHeatmaps sectors={filteredSectors} minCorr={effectiveFilter.minCorr} onStockSelect={handleSearchSelect} />
-    }
-    if (currentView === 'network' && filteredCorrelation) {
       return (
-        <NetworkGraph
-          stocks={filteredCorrelation.stocks}
-          matrix={filteredCorrelation.matrix}
-          minCorr={effectiveFilter.minCorr}
-          sectors={filteredSectors}
-          period={period}
-          onStockSelect={handleSearchSelect}
-        />
+        <AnimatedTabContent>
+          <SectorHeatmaps sectors={sectors} minCorr={MIN_CORR} onStockSelect={handleSearchSelect} />
+        </AnimatedTabContent>
+      )
+    }
+    if (currentView === 'network' && networkCorrelation) {
+      return (
+        <AnimatedTabContent>
+          <NetworkGraph
+            stocks={networkCorrelation.stocks}
+            matrix={networkCorrelation.matrix}
+            minCorr={MIN_CORR}
+            sectors={sectors}
+            period={period}
+            onStockSelect={handleSearchSelect}
+          />
+        </AnimatedTabContent>
       )
     }
     if (currentView === 'ranking') {
       return (
-        <RankingView
-          sectors={filteredSectors}
-          correlation={correlation}
-          minCorr={effectiveFilter.minCorr}
-          onStockSelect={handleSearchSelect}
-        />
+        <AnimatedTabContent>
+          <RankingView
+            sectors={sectors}
+            correlation={correlation}
+            minCorr={MIN_CORR}
+            onStockSelect={handleSearchSelect}
+          />
+        </AnimatedTabContent>
       )
     }
     if (currentView === 'chart') {
       return (
-        <ChartView
-          key={chartInitialStock?.code ?? 'none'}
-          period={period}
-          onPeriodChange={setCurrentPeriod}
-          initialStock={chartInitialStock}
-          sectors={sectors}
-          correlation={correlation}
-          onBack={chartReturnView ? handleChartBack : undefined}
-          backLabel={chartReturnView ? VIEW_LABELS[chartReturnView] : undefined}
-        />
+        <AnimatedTabContent>
+          <ChartView
+            key={chartInitialStock?.code ?? 'none'}
+            period={period}
+            onPeriodChange={setCurrentPeriod}
+            initialStock={chartInitialStock}
+            sectors={sectors}
+            correlation={correlation}
+            onBack={chartReturnView ? handleChartBack : undefined}
+            backLabel={chartReturnView ? VIEW_LABELS[chartReturnView] : undefined}
+          />
+        </AnimatedTabContent>
       )
     }
     if (currentView === 'macro') {
       const macro = cachedMacro
+      if (macro?.error) {
+        return <ErrorView message={macro.error} />
+      }
       if (!macro?.data) {
         return (
           <div className="h-full flex items-center justify-center">
@@ -203,7 +221,11 @@ function AppInner() {
           </div>
         )
       }
-      return <MacroHeatmap data={macro.data} sectors={filteredSectors} onStockSelect={handleSearchSelect} />
+      return (
+        <AnimatedTabContent>
+          <MacroHeatmap data={macro.data} sectors={sectors} onStockSelect={handleSearchSelect} />
+        </AnimatedTabContent>
+      )
     }
     return null
   }
@@ -226,7 +248,7 @@ function AppInner() {
     if (view !== 'chart') setChartReturnView(null)
   }
 
-  const isNetworkActive = currentView === 'network' && !isLoading && !error && filteredCorrelation !== null
+  const isNetworkActive = currentView === 'network' && !isLoading && !error && networkCorrelation !== null
 
   return (
     <div className="h-dvh min-h-[480px] flex flex-col bg-bg font-sans overflow-hidden">
@@ -239,18 +261,26 @@ function AppInner() {
       </div>
       <div className="flex flex-1 overflow-hidden px-3 py-3 sm:px-6 sm:py-4 md:px-10 lg:px-16 xl:px-24 2xl:px-32">
         <main className={`min-w-0 flex-1 flex flex-col ${isNetworkActive ? 'overflow-hidden' : 'overflow-auto'}`}>
-          {currentView !== 'home' && !error && (
-            <DataSummaryBar
-              view={currentView}
-              period={period}
-              onPeriodChange={currentView === 'chart' ? undefined : setCurrentPeriod}
-              sectors={filteredSectors}
-              correlation={correlation}
-              health={health}
-            />
-          )}
-          <div className="min-h-0 flex-1">
-            {renderMain()}
+          <div
+            key={`${currentView}:${currentView === 'chart' ? chartInitialStock?.code ?? 'none' : ''}`}
+            className="min-h-0 flex-1 flex flex-col"
+          >
+            {currentView !== 'home' && !error && (
+              <div className="tab-summary-motion">
+                <DataSummaryBar
+                  view={currentView}
+                  period={period}
+                  sectors={sectors}
+                  correlation={correlation}
+                  health={health}
+                />
+              </div>
+            )}
+            <div className="min-h-0 flex-1">
+              <Suspense fallback={<LoadingView />}>
+                {renderMain()}
+              </Suspense>
+            </div>
           </div>
         </main>
       </div>
