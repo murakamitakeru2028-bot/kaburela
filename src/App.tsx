@@ -13,7 +13,6 @@ const TrendView = lazy(() => import('./components/charts/TrendView').then(module
 const SectorHeatmaps = lazy(() => import('./components/charts/SectorHeatmaps').then(module => ({ default: module.SectorHeatmaps })))
 const NetworkGraph = lazy(() => import('./components/charts/NetworkGraph').then(module => ({ default: module.NetworkGraph })))
 const RankingView = lazy(() => import('./components/charts/RankingView').then(module => ({ default: module.RankingView })))
-const StockCorrelationView = lazy(() => import('./components/charts/StockCorrelationView').then(module => ({ default: module.StockCorrelationView })))
 const ChartView = lazy(() => import('./components/charts/ChartView').then(module => ({ default: module.ChartView })))
 const MacroHeatmap = lazy(() => import('./components/charts/MacroHeatmap').then(module => ({ default: module.MacroHeatmap })))
 
@@ -130,18 +129,6 @@ function AppInner() {
       return (
         <AnimatedTabContent>
           <HomeView onNavigate={handleViewChange} sectors={sectors} correlation={correlation} health={health} period={period} />
-        </AnimatedTabContent>
-      )
-    }
-    if (currentView === 'stockcorr') {
-      return (
-        <AnimatedTabContent>
-          <StockCorrelationView
-            period={period}
-            onPeriodChange={setCurrentPeriod}
-            sectors={sectors}
-            onStockSelect={handleSearchSelect}
-          />
         </AnimatedTabContent>
       )
     }
