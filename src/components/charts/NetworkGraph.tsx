@@ -352,6 +352,20 @@ function useDraggableNodes(baseNodes: XY[], size: { w: number; h: number }, hitR
   const overrides = overridesByKey[layoutKey] ?? EMPTY_NODE_OVERRIDES
   const activeDrag = drag?.layoutKey === layoutKey ? drag : null
 
+  // rAF-throttle drag updates: setState on every pointermove was triggering a
+  // full SVG re-render at ~120Hz with all nodes/edges, which made dragging laggy.
+  const pendingDragRef = useRef<XY | null>(null)
+  const dragFrameRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (dragFrameRef.current !== null) {
+        cancelAnimationFrame(dragFrameRef.current)
+        dragFrameRef.current = null
+      }
+    }
+  }, [])
+
   const margin = Math.max(hitR + 8, 58)
   const nodes = useMemo(
     () => baseNodes.map((node, index) => {
@@ -381,26 +395,44 @@ function useDraggableNodes(baseNodes: XY[], size: { w: number; h: number }, hitR
     })
   }
 
+  const flushPendingDrag = () => {
+    const pending = pendingDragRef.current
+    pendingDragRef.current = null
+    if (!pending || !activeDrag) return
+    const previous = nodes[activeDrag.index] ?? pending
+    const moved = activeDrag.moved || Math.hypot(previous.x - pending.x, previous.y - pending.y) > 3
+    setOverridesByKey(prev => ({
+      ...prev,
+      [layoutKey]: {
+        ...(prev[layoutKey] ?? {}),
+        [activeDrag.index]: { x: pending.x / size.w, y: pending.y / size.h },
+      },
+    }))
+    if (moved !== activeDrag.moved) setDrag(prev => prev ? { ...prev, moved } : prev)
+  }
+
   const moveDrag = (event: PointerEvent<SVGSVGElement>) => {
     if (!activeDrag || activeDrag.pointerId !== event.pointerId || !size.w || !size.h) return
     event.preventDefault()
     const point = pointerPosition(event, size)
     const x = clamp(point.x - activeDrag.offsetX, margin, size.w - margin)
     const y = clamp(point.y - activeDrag.offsetY, margin, size.h - margin - 34)
-    const previous = nodes[activeDrag.index] ?? { x, y }
-    const moved = activeDrag.moved || Math.hypot(previous.x - x, previous.y - y) > 3
-    setOverridesByKey(prev => ({
-      ...prev,
-      [layoutKey]: {
-        ...(prev[layoutKey] ?? {}),
-        [activeDrag.index]: { x: x / size.w, y: y / size.h },
-      },
-    }))
-    if (moved !== activeDrag.moved) setDrag({ ...activeDrag, moved })
+
+    pendingDragRef.current = { x, y }
+    if (dragFrameRef.current !== null) return
+    dragFrameRef.current = requestAnimationFrame(() => {
+      dragFrameRef.current = null
+      flushPendingDrag()
+    })
   }
 
   const endDrag = (event: PointerEvent<SVGSVGElement>) => {
     if (!activeDrag || activeDrag.pointerId !== event.pointerId) return
+    if (dragFrameRef.current !== null) {
+      cancelAnimationFrame(dragFrameRef.current)
+      dragFrameRef.current = null
+      flushPendingDrag()
+    }
     if (activeDrag.moved) setSuppressClick({ layoutKey, index: activeDrag.index })
     setDrag(null)
   }

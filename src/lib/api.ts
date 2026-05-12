@@ -73,6 +73,9 @@ const dataBase = `${viteBase}/data`
 
 let masterPromise: Promise<MasterSector[]> | null = null
 
+// In-memory response cache so re-mounts and re-navigations skip the 17MB JSON re-fetch.
+const responseCache = new Map<string, Promise<unknown>>()
+
 async function jsonFetch<T>(url: string): Promise<T> {
   const res = await fetch(url)
   if (!res.ok) {
@@ -91,13 +94,25 @@ async function jsonFetch<T>(url: string): Promise<T> {
   }
 }
 
+function cachedFetch<T>(url: string): Promise<T> {
+  const cached = responseCache.get(url) as Promise<T> | undefined
+  if (cached) return cached
+  const promise = jsonFetch<T>(url).catch(err => {
+    // Drop failed entries so a retry can succeed.
+    responseCache.delete(url)
+    throw err
+  })
+  responseCache.set(url, promise)
+  return promise
+}
+
 function apiFetch<T>(path: string): Promise<T> {
   if (!apiBase) throw new Error('VITE_API_BASE_URL is not configured')
-  return jsonFetch(`${apiBase}${path}`)
+  return cachedFetch<T>(`${apiBase}${path}`)
 }
 
 function staticFetch<T>(path: string): Promise<T> {
-  return jsonFetch(`${dataBase}${path}`)
+  return cachedFetch<T>(`${dataBase}${path}`)
 }
 
 function bySign(pair: PairData, sign: 'all' | 'pos' | 'neg'): boolean {

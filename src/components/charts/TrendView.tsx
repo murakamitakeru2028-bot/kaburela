@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { cn } from '../../lib/cn'
 import { fetchCorrelation, type CorrelationResponse, type SectorData } from '../../lib/api'
 import type { Period } from '../../types/filter'
@@ -163,10 +163,23 @@ export function TrendView({ period, sectors, minCorr, onStockSelect }: Props) {
     ).slice(0, 80)
   }, [allPairs, mode, threshold, normalizedQuery])
 
-  const signFlipCount = allPairs.filter(pair => signFlip(pair.shortCorr, pair.longCorr)).length
-  const strongerCount = allPairs.filter(pair => pair.delta >= threshold).length
-  const weakerCount = allPairs.filter(pair => pair.delta <= -threshold).length
-  const maxShift = allPairs[0]?.delta ?? 0
+  const { signFlipCount, strongerCount, weakerCount, maxShift, candidateCount } = useMemo(() => {
+    let flips = 0
+    let stronger = 0
+    let weaker = 0
+    for (const pair of allPairs) {
+      if (signFlip(pair.shortCorr, pair.longCorr)) flips++
+      if (pair.delta >= threshold) stronger++
+      else if (pair.delta <= -threshold) weaker++
+    }
+    return {
+      signFlipCount: flips,
+      strongerCount: stronger,
+      weakerCount: weaker,
+      maxShift: allPairs[0]?.delta ?? 0,
+      candidateCount: filterPairs(allPairs, mode).length,
+    }
+  }, [allPairs, threshold, mode])
 
   const hasCurrentData = data?.periods.short === trendPeriods.short && data.periods.long === trendPeriods.long
   const currentError = error?.periods.short === trendPeriods.short && error.periods.long === trendPeriods.long ? error.message : null
@@ -267,7 +280,7 @@ export function TrendView({ period, sectors, minCorr, onStockSelect }: Props) {
           <span className="text-muted/40 text-[10px] select-none">·</span>
           <StatLine label="表示" value={visiblePairs.length.toLocaleString('ja-JP')} />
           <span className="text-muted/40 text-[10px] select-none">·</span>
-          <StatLine label="候補" value={filterPairs(allPairs, mode).length.toLocaleString('ja-JP')} />
+          <StatLine label="候補" value={candidateCount.toLocaleString('ja-JP')} />
         </div>
       </header>
 
@@ -352,7 +365,7 @@ function SegmentedSwitch<T extends string>({
   )
 }
 
-function TrendRow({
+const TrendRow = memo(function TrendRow({
   rank,
   pair,
   onStockSelect,
@@ -375,7 +388,7 @@ function TrendRow({
       <DeltaBadge delta={pair.delta} />
     </div>
   )
-}
+})
 
 function RankNumber({ rank }: { rank: number }) {
   const strong = rank <= 3

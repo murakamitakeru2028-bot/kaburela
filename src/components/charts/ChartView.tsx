@@ -172,6 +172,8 @@ function LineChart({ selectedStocks, chartData }: LineChartProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(600)
   const [hoverX, setHoverX] = useState<number | null>(null)
+  const hoverFrameRef = useRef<number | null>(null)
+  const pendingHoverRef = useRef<number | null>(null)
   const { isDark } = useTheme()
 
   useEffect(() => {
@@ -180,7 +182,10 @@ function LineChart({ selectedStocks, chartData }: LineChartProps) {
     const ro = new ResizeObserver(() => setWidth(el.clientWidth))
     ro.observe(el)
     setWidth(el.clientWidth)
-    return () => ro.disconnect()
+    return () => {
+      ro.disconnect()
+      if (hoverFrameRef.current !== null) cancelAnimationFrame(hoverFrameRef.current)
+    }
   }, [])
 
   const H = 260
@@ -222,7 +227,23 @@ function LineChart({ selectedStocks, chartData }: LineChartProps) {
     const x = e.clientX - rect.left
     const raw = (x - MG.left) / chartW * (maxLen - 1)
     const idx = Math.max(0, Math.min(maxLen - 1, Math.round(raw)))
-    setHoverX(idx)
+    pendingHoverRef.current = idx
+    if (hoverFrameRef.current !== null) return
+    hoverFrameRef.current = requestAnimationFrame(() => {
+      hoverFrameRef.current = null
+      const pending = pendingHoverRef.current
+      pendingHoverRef.current = null
+      if (pending !== null) setHoverX(pending)
+    })
+  }
+
+  function handleMouseLeave() {
+    if (hoverFrameRef.current !== null) {
+      cancelAnimationFrame(hoverFrameRef.current)
+      hoverFrameRef.current = null
+    }
+    pendingHoverRef.current = null
+    setHoverX(null)
   }
 
   if (series.length === 0) return null
@@ -238,7 +259,7 @@ function LineChart({ selectedStocks, chartData }: LineChartProps) {
           width={width}
           height={H}
           onMouseMove={handleMouseMove}
-          onMouseLeave={() => setHoverX(null)}
+          onMouseLeave={handleMouseLeave}
           style={{ cursor: 'crosshair', overflow: 'visible' }}
         >
           {gridVals.map(v => (

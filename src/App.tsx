@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
+import { lazy, memo, Suspense, useCallback, useEffect, useState, type ReactNode } from 'react'
 import { ThemeContext } from './lib/ThemeContext'
 import { Header } from './components/layout/Header'
 import { LoadingView, ErrorView } from './components/layout/StatusViews'
@@ -37,13 +37,13 @@ const EMPTY_SECTORS: SectorData[] = []
 const MIN_CORR = 0
 const VIEW_LABELS = Object.fromEntries(TABS.map(tab => [tab.id, tab.label])) as Record<View, string>
 
-function AnimatedTabContent({ children }: { children: ReactNode }) {
+const AnimatedTabContent = memo(function AnimatedTabContent({ children }: { children: ReactNode }) {
   return (
     <div className="h-full min-h-0 tab-panel-motion">
       {children}
     </div>
   )
-}
+})
 
 function AppInner() {
   const [currentView, setCurrentView] = useState<View>('home')
@@ -57,9 +57,9 @@ function AppInner() {
   const cachedMarket = marketCache[period]
   const cachedMacro = macroCache[period]
 
-  function setCurrentPeriod(nextPeriod: Period) {
+  const setCurrentPeriod = useCallback((nextPeriod: Period) => {
     setPeriodByView(prev => ({ ...prev, [currentView]: nextPeriod }))
-  }
+  }, [currentView])
 
   useEffect(() => {
     if (cachedMarket) return
@@ -217,23 +217,23 @@ function AppInner() {
     return null
   }
 
-  function handleSearchSelect(stock: StockInfo) {
+  const handleSearchSelect = useCallback((stock: StockInfo) => {
     setChartInitialStock(stock)
     setChartReturnView(currentView === 'chart' ? chartReturnView : currentView)
     setPeriodByView(prev => ({ ...prev, chart: prev[currentView] ?? '6M' }))
     setCurrentView('chart')
-  }
+  }, [currentView, chartReturnView])
 
-  function handleChartBack() {
+  const handleChartBack = useCallback(() => {
     setCurrentView(chartReturnView ?? 'home')
     setChartReturnView(null)
-  }
+  }, [chartReturnView])
 
-  function handleViewChange(view: View) {
+  const handleViewChange = useCallback((view: View) => {
     setPeriodByView(prev => (prev[view] ? prev : { ...prev, [view]: prev[currentView] ?? '6M' }))
     setCurrentView(view)
     if (view !== 'chart') setChartReturnView(null)
-  }
+  }, [currentView])
 
   const isNetworkActive = currentView === 'network' && !isLoading && !error && networkCorrelation !== null
 
