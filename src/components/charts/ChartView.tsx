@@ -1065,11 +1065,12 @@ export function ChartView({ period, onPeriodChange, initialStock, sectors, corre
                     href={`https://finance.yahoo.co.jp/quote/${stock.code}.T`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-muted hover:text-ink transition-colors cursor-pointer"
+                    className="inline-flex items-center text-muted hover:text-ink transition-colors"
                     aria-label={`${stock.name}をYahoo Financeで開く`}
                   >
-                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden>
-                      <path d="M5.5 1.5H8.5V4.5M8.5 1.5L4 6M2 3H1.5A.5.5 0 0 0 1 3.5V8.5A.5.5 0 0 0 1.5 9H6.5A.5.5 0 0 0 7 8.5V8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                    <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden>
+                      <path d="M7 1h4v4M11 1L5 7" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M5 2H2a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V7" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
                     </svg>
                   </a>
                 )}
