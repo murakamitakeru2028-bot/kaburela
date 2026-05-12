@@ -5,7 +5,6 @@ import { corrToFill, corrToTextFill } from '../../lib/colorUtils'
 import type { ChartData, CorrelationResponse, SectorData } from '../../lib/api'
 import type { StockInfo } from '../../types/stock'
 import { PERIODS, type Period } from '../../types/filter'
-import { StockCorrelationView } from './StockCorrelationView'
 
 const COLORS = ['#3b82f6', '#ec4899', '#f97316', '#10b981', '#8b5cf6']
 const MAX_STOCKS = 5
@@ -705,8 +704,6 @@ export function ChartView({ period, onPeriodChange, initialStock, sectors, corre
   const [sectorPanelOpen, setSectorPanelOpen] = useState(false)
   const [detailCode, setDetailCode] = useState<string | null>(null)
   const [detailData, setDetailData] = useState<Map<string, ChartData>>(new Map())
-  const [corrOpen, setCorrOpen] = useState(false)
-
   const inputRef = useRef<HTMLInputElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -1140,42 +1137,6 @@ export function ChartView({ period, onPeriodChange, initialStock, sectors, corre
             )}
           </section>
 
-          <section className="pt-4 border-t border-border">
-            <button
-              type="button"
-              onClick={() => setCorrOpen(v => !v)}
-              className="flex items-center gap-2 text-[13px] font-semibold text-ink hover:text-muted transition-colors cursor-pointer"
-            >
-              <span className="w-1.5 h-5 rounded-full bg-[#2563eb]" />
-              銘柄相関
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 12 12"
-                fill="none"
-                aria-hidden
-                className="text-muted transition-transform"
-                style={{ transform: corrOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
-              >
-                <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
-            <p className="text-[11px] text-muted mt-1 ml-[18px]">
-              {selectedStocks[0]?.label ?? ''} と相関・逆相関の強い銘柄を確認できます
-            </p>
-            {corrOpen && (
-              <div className="mt-3 h-[540px] border border-border rounded-xl overflow-hidden">
-                <StockCorrelationView
-                  key={selectedStocks[0]?.code ?? 'none'}
-                  period={period}
-                  onPeriodChange={onPeriodChange}
-                  sectors={sectors ?? []}
-                  onStockSelect={addStock}
-                  initialStock={selectedStocks[0] ?? null}
-                />
-              </div>
-            )}
-          </section>
         </>
       ) : selectedStocks.length === 0 ? (
         <div
