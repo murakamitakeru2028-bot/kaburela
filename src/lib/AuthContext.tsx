@@ -1,5 +1,4 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
-import { authenticateWithGoogle } from './api'
 
 const GOOGLE_CLIENT_ID = (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined) ?? ''
 
@@ -11,17 +10,24 @@ export interface AuthUser {
 
 interface AuthContextValue {
   user: AuthUser | null
-  token: string | null
+  userId: string | null
   login: () => void
   logout: () => void
 }
 
 const AuthContext = createContext<AuthContextValue>({
   user: null,
-  token: null,
+  userId: null,
   login: () => {},
   logout: () => {},
 })
+
+// Google JWTのペイロードをバックエンドなしでデコードする（署名検証なし）
+function decodeGoogleJwt(credential: string): { sub: string; email: string; name: string; picture?: string } {
+  const payload = credential.split('.')[1]
+  const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'))
+  return JSON.parse(decoded) as { sub: string; email: string; name: string; picture?: string }
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(() => {
@@ -29,16 +35,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!stored) return null
     try { return JSON.parse(stored) as AuthUser } catch { return null }
   })
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem('auth_token'))
+  const [userId, setUserId] = useState<string | null>(() => localStorage.getItem('auth_user_id'))
   const gisReady = useRef(false)
 
-  const handleCredential = useCallback(async (credential: string) => {
+  const handleCredential = useCallback((credential: string) => {
     try {
-      const data = await authenticateWithGoogle(credential)
-      localStorage.setItem('auth_token', data.token)
-      localStorage.setItem('auth_user', JSON.stringify(data.user))
-      setToken(data.token)
-      setUser(data.user)
+      const idinfo = decodeGoogleJwt(credential)
+      const u: AuthUser = { email: idinfo.email, name: idinfo.name, picture: idinfo.picture }
+      localStorage.setItem('auth_user', JSON.stringify(u))
+      localStorage.setItem('auth_user_id', idinfo.sub)
+      setUser(u)
+      setUserId(idinfo.sub)
     } catch (e) {
       console.error('ログインエラー:', e)
     }
@@ -62,7 +69,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return
     }
 
-    // GISスクリプトが未読み込みの場合は動的に追加
     const existing = document.querySelector('script[src="https://accounts.google.com/gsi/client"]')
     if (existing) {
       existing.addEventListener('load', initGIS)
@@ -84,14 +90,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => {
     if (window.google) window.google.accounts.id.disableAutoSelect()
-    localStorage.removeItem('auth_token')
     localStorage.removeItem('auth_user')
-    setToken(null)
+    localStorage.removeItem('auth_user_id')
     setUser(null)
+    setUserId(null)
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout }}>
+    <AuthContext.Provider value={{ user, userId, login, logout }}>
       {children}
     </AuthContext.Provider>
   )

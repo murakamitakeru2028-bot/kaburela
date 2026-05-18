@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '../../lib/AuthContext'
-import { fetchWatchlist, addToWatchlist, removeFromWatchlist, searchStocksApi, type WatchlistItem } from '../../lib/api'
+import { searchStocksApi } from '../../lib/api'
 import type { SectorData } from '../../lib/api'
 import type { StockInfo } from '../../types/stock'
 
@@ -8,6 +8,11 @@ interface WatchlistViewProps {
   sectors: SectorData[]
   onStockSelect: (stock: StockInfo) => void
   onLogin: () => void
+}
+
+interface WatchlistItem {
+  code: string
+  added_at: string
 }
 
 function buildStockMap(sectors: SectorData[]): Map<string, StockInfo & { sector: string; color: string }> {
@@ -18,6 +23,23 @@ function buildStockMap(sectors: SectorData[]): Map<string, StockInfo & { sector:
     }
   }
   return map
+}
+
+function watchlistKey(userId: string) {
+  return `kaburela_watchlist_${userId}`
+}
+
+function loadFromStorage(userId: string): WatchlistItem[] {
+  try {
+    const stored = localStorage.getItem(watchlistKey(userId))
+    return stored ? (JSON.parse(stored) as WatchlistItem[]) : []
+  } catch {
+    return []
+  }
+}
+
+function saveToStorage(userId: string, items: WatchlistItem[]) {
+  localStorage.setItem(watchlistKey(userId), JSON.stringify(items))
 }
 
 function StarIcon() {
@@ -34,30 +56,18 @@ function StarIcon() {
 }
 
 export function WatchlistView({ sectors, onStockSelect, onLogin }: WatchlistViewProps) {
-  const { user, token } = useAuth()
+  const { user, userId } = useAuth()
   const [items, setItems] = useState<WatchlistItem[]>([])
-  const [loading, setLoading] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<StockInfo[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const stockMap = buildStockMap(sectors)
 
-  const loadWatchlist = useCallback(async () => {
-    if (!token) return
-    setLoading(true)
-    try {
-      const data = await fetchWatchlist(token)
-      setItems(data)
-    } catch (e) {
-      console.error('マイリスト取得エラー:', e)
-    } finally {
-      setLoading(false)
-    }
-  }, [token])
-
+  // ユーザーが変わったらlocalStorageからロード
   useEffect(() => {
-    loadWatchlist()
-  }, [loadWatchlist])
+    if (!userId) { setItems([]); return }
+    setItems(loadFromStorage(userId))
+  }, [userId])
 
   useEffect(() => {
     const q = searchQuery.trim()
@@ -77,27 +87,26 @@ export function WatchlistView({ sectors, onStockSelect, onLogin }: WatchlistView
     return () => { cancelled = true; clearTimeout(timer) }
   }, [searchQuery])
 
-  const handleAdd = useCallback(async (code: string) => {
-    if (!token) return
-    try {
-      const item = await addToWatchlist(code, token)
-      setItems(prev => [item, ...prev.filter(i => i.code !== code)])
-      setSearchQuery('')
-      setSearchResults([])
-    } catch (e) {
-      console.error('追加エラー:', e)
-    }
-  }, [token])
+  const handleAdd = useCallback((code: string) => {
+    if (!userId) return
+    setItems(prev => {
+      if (prev.some(i => i.code === code)) return prev
+      const next = [{ code, added_at: new Date().toISOString() }, ...prev]
+      saveToStorage(userId, next)
+      return next
+    })
+    setSearchQuery('')
+    setSearchResults([])
+  }, [userId])
 
-  const handleRemove = useCallback(async (code: string) => {
-    if (!token) return
-    try {
-      await removeFromWatchlist(code, token)
-      setItems(prev => prev.filter(i => i.code !== code))
-    } catch (e) {
-      console.error('削除エラー:', e)
-    }
-  }, [token])
+  const handleRemove = useCallback((code: string) => {
+    if (!userId) return
+    setItems(prev => {
+      const next = prev.filter(i => i.code !== code)
+      saveToStorage(userId, next)
+      return next
+    })
+  }, [userId])
 
   // 未ログイン時
   if (!user) {
@@ -181,11 +190,7 @@ export function WatchlistView({ sectors, onStockSelect, onLogin }: WatchlistView
       </div>
 
       {/* リスト本体 */}
-      {loading ? (
-        <div className="flex-1 flex items-center justify-center">
-          <p className="text-[13px] text-muted">読み込み中...</p>
-        </div>
-      ) : items.length === 0 ? (
+      {items.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center gap-2 text-center">
           <p className="text-[13px] text-muted">まだ銘柄がありません</p>
           <p className="text-[12px] text-muted">上の検索から追加してください</p>
