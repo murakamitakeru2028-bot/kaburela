@@ -1,4 +1,4 @@
-export type View = 'home' | 'trend' | 'heatmap' | 'network' | 'macro' | 'ranking' | 'chart'
+export type View = 'home' | 'trend' | 'heatmap' | 'network' | 'macro' | 'ranking' | 'chart' | 'watchlist'
 
 export const TABS: { id: View; label: string }[] = [
   { id: 'home', label: 'ホーム' },
@@ -8,4 +8,5 @@ export const TABS: { id: View; label: string }[] = [
   { id: 'macro', label: 'マクロ' },
   { id: 'ranking', label: 'ランキング' },
   { id: 'chart', label: 'チャート' },
+  { id: 'watchlist', label: 'マイリスト' },
 ]

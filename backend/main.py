@@ -11,9 +11,11 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 
 from apscheduler.schedulers.background import BackgroundScheduler
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
+from auth import create_jwt, decode_jwt, get_or_create_user, verify_google_token
 from batch import run_batch, seed_stocks
 from cache import TTLCache
 from config import ALL_STOCKS, MACRO_INDICATORS, SECTOR_DEFINITIONS, VALID_PERIODS
@@ -95,9 +97,10 @@ app.add_middleware(
         "http://localhost:5174",
         "http://127.0.0.1:5173",
         "http://127.0.0.1:5174",
+        "https://kaburela.vercel.app",
     ],
     allow_credentials=True,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["*"],
 )
 
@@ -556,3 +559,88 @@ def compare_stocks(
 
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"データ取得エラー: {exc}")
+
+
+# ──────────────────────────────────────────
+# 認証・マイリスト
+# ──────────────────────────────────────────
+
+class GoogleAuthRequest(BaseModel):
+    credential: str
+
+
+def _get_user_id(authorization: str | None) -> int:
+    """AuthorizationヘッダーからJWTを検証してuser_idを返す"""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="認証が必要です")
+    token = authorization.removeprefix("Bearer ")
+    try:
+        payload = decode_jwt(token)
+        return int(payload["sub"])
+    except Exception:
+        raise HTTPException(status_code=401, detail="トークンが無効です")
+
+
+@app.post("/api/auth/google")
+def auth_google(req: GoogleAuthRequest):
+    """Google IDトークンを検証してJWTを発行する"""
+    try:
+        idinfo = verify_google_token(req.credential)
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Googleトークンが無効です: {e}")
+
+    user_id = get_or_create_user(
+        google_sub=idinfo["sub"],
+        email=idinfo["email"],
+        name=idinfo.get("name", ""),
+        picture=idinfo.get("picture"),
+    )
+    token = create_jwt(user_id, idinfo["email"])
+    return {
+        "token": token,
+        "user": {
+            "email": idinfo["email"],
+            "name": idinfo.get("name", ""),
+            "picture": idinfo.get("picture"),
+        },
+    }
+
+
+@app.get("/api/watchlist")
+def get_watchlist(authorization: str | None = Header(default=None)):
+    """ログインユーザーのマイリストを返す"""
+    user_id = _get_user_id(authorization)
+    from database import get_conn as _conn
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT code, added_at FROM watchlists WHERE user_id = ? ORDER BY added_at DESC",
+            (user_id,),
+        ).fetchall()
+    return [{"code": r["code"], "added_at": r["added_at"]} for r in rows]
+
+
+@app.post("/api/watchlist/{code}")
+def add_to_watchlist(code: str, authorization: str | None = Header(default=None)):
+    """銘柄をマイリストに追加する"""
+    user_id = _get_user_id(authorization)
+    now = datetime.now().isoformat()
+    from database import get_conn as _conn
+    with _conn() as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO watchlists (user_id, code, added_at) VALUES (?, ?, ?)",
+            (user_id, code, now),
+        )
+    return {"code": code, "added_at": now}
+
+
+@app.delete("/api/watchlist/{code}")
+def remove_from_watchlist(code: str, authorization: str | None = Header(default=None)):
+    """銘柄をマイリストから削除する"""
+    user_id = _get_user_id(authorization)
+    from database import get_conn as _conn
+    with _conn() as conn:
+        conn.execute(
+            "DELETE FROM watchlists WHERE user_id = ? AND code = ?",
+            (user_id, code),
+        )
+    return {"message": f"{code} をマイリストから削除しました"}

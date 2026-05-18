@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { cn } from '../../lib/cn'
 import { useTheme } from '../../lib/ThemeContext'
+import { useAuth } from '../../lib/AuthContext'
 import { SegmentedControl } from './TabNav'
 import { LogoMark } from './LogoMark'
 import { searchStocksApi } from '../../lib/api'
@@ -55,9 +56,12 @@ export function Header({ currentView, onViewChange, onSearchSelect }: HeaderProp
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<StockInfo[]>([])
   const [isSearching, setIsSearching] = useState(false)
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
   const { isDark, toggle } = useTheme()
+  const { user, login, logout } = useAuth()
   const searchInputRef = useRef<HTMLInputElement>(null)
   const searchPanelRef = useRef<HTMLDivElement>(null)
+  const userMenuRef = useRef<HTMLDivElement>(null)
   const themeLabel = isDark ? 'ライトモードに切り替え' : 'ダークモードに切り替え'
 
   const closeSearch = useCallback(() => {
@@ -96,6 +100,16 @@ export function Header({ currentView, onViewChange, onSearchSelect }: HeaderProp
     if (searchOpen) document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [searchOpen, closeSearch])
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false)
+      }
+    }
+    if (userMenuOpen) document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [userMenuOpen])
 
   useEffect(() => {
     const q = searchQuery.trim()
@@ -218,6 +232,50 @@ export function Header({ currentView, onViewChange, onSearchSelect }: HeaderProp
               </div>
             )}
           </div>
+
+          {user ? (
+            <div className="relative" ref={userMenuRef}>
+              <button
+                type="button"
+                onClick={() => setUserMenuOpen(v => !v)}
+                className="w-10 h-10 sm:w-8 sm:h-8 rounded-full flex items-center justify-center overflow-hidden border border-border hover:opacity-80 transition-opacity cursor-pointer"
+                aria-label="ユーザーメニュー"
+                title={user.name}
+              >
+                {user.picture ? (
+                  <img src={user.picture} alt={user.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                ) : (
+                  <span className="text-[11px] font-semibold text-ink bg-subtle w-full h-full flex items-center justify-center">
+                    {user.name.charAt(0).toUpperCase()}
+                  </span>
+                )}
+              </button>
+              {userMenuOpen && (
+                <div className="absolute right-0 top-[calc(100%+6px)] w-52 bg-paper rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.14),0_0_0_1px_rgba(0,0,0,0.06)] z-50 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-border">
+                    <p className="text-[13px] font-medium text-ink truncate">{user.name}</p>
+                    <p className="text-[11px] text-muted truncate">{user.email}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { logout(); setUserMenuOpen(false) }}
+                    className="w-full px-4 py-2.5 text-left text-[13px] text-ink hover:bg-subtle transition-colors cursor-pointer"
+                  >
+                    ログアウト
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={login}
+              className="h-10 sm:h-8 px-3 rounded-[10px] text-[12px] font-medium text-muted hover:text-ink hover:bg-subtle transition-colors cursor-pointer whitespace-nowrap"
+              aria-label="Googleでログイン"
+            >
+              ログイン
+            </button>
+          )}
 
           <button
             type="button"

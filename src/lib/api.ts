@@ -247,3 +247,57 @@ export function fetchHealth(): Promise<HealthResponse> {
   if (apiBase) return apiFetch('/health')
   return staticFetch('/health.json')
 }
+
+// ──────────────────────────────────────────
+// 認証・マイリスト（キャッシュなし・認証付きリクエスト）
+// ──────────────────────────────────────────
+
+function authFetch<T>(path: string, options: RequestInit): Promise<T> {
+  if (!apiBase) return Promise.reject(new Error('VITE_API_BASE_URLが未設定です'))
+  return fetch(`${apiBase}${path}`, options).then(async res => {
+    if (!res.ok) {
+      const detail = await res.json().then((d: { detail?: string }) => d.detail).catch(() => res.statusText)
+      throw new Error(detail ?? `リクエスト失敗 (${res.status})`)
+    }
+    return res.json() as Promise<T>
+  })
+}
+
+export interface AuthUser {
+  email: string
+  name: string
+  picture?: string
+}
+
+export function authenticateWithGoogle(credential: string): Promise<{ token: string; user: AuthUser }> {
+  return authFetch('/api/auth/google', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ credential }),
+  })
+}
+
+export interface WatchlistItem {
+  code: string
+  added_at: string
+}
+
+export function fetchWatchlist(token: string): Promise<WatchlistItem[]> {
+  return authFetch('/api/watchlist', {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
+export function addToWatchlist(code: string, token: string): Promise<WatchlistItem> {
+  return authFetch(`/api/watchlist/${encodeURIComponent(code)}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
+export function removeFromWatchlist(code: string, token: string): Promise<{ message: string }> {
+  return authFetch(`/api/watchlist/${encodeURIComponent(code)}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}

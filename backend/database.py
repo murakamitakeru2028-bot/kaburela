@@ -69,6 +69,23 @@ CREATE TABLE IF NOT EXISTS stock_correlation_rankings (
 
 CREATE INDEX IF NOT EXISTS idx_stock_corr_rank_base_period
     ON stock_correlation_rankings (base_code, period);
+
+-- Googleログインユーザー
+CREATE TABLE IF NOT EXISTS users (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    google_sub TEXT UNIQUE NOT NULL,
+    email      TEXT NOT NULL,
+    name       TEXT NOT NULL,
+    picture    TEXT
+);
+
+-- マイリスト（ユーザーごとのウォッチリスト）
+CREATE TABLE IF NOT EXISTS watchlists (
+    user_id  INTEGER NOT NULL REFERENCES users(id),
+    code     TEXT NOT NULL,
+    added_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, code)
+);
 """
 
 

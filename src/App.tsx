@@ -1,9 +1,11 @@
 import { lazy, memo, Suspense, useCallback, useEffect, useState, type ReactNode } from 'react'
 import { ThemeContext } from './lib/ThemeContext'
+import { AuthProvider, useAuth } from './lib/AuthContext'
 import { Header } from './components/layout/Header'
 import { LoadingView, ErrorView } from './components/layout/StatusViews'
 import { DataSummaryBar } from './components/layout/DataSummaryBar'
 import { HomeView } from './components/home/HomeView'
+import { WatchlistView } from './components/watchlist/WatchlistView'
 import { TABS, type View } from './components/layout/tabConfig'
 import type { Period } from './types/filter'
 import { fetchSectors, fetchCorrelation, fetchMacro, fetchHealth, type SectorData, type CorrelationResponse, type MacroResponse, type HealthResponse } from './lib/api'
@@ -53,6 +55,7 @@ function AppInner() {
   const [marketCache, setMarketCache] = useState<MarketCache>({})
   const [macroCache, setMacroCache] = useState<MacroCache>({})
   const [health, setHealth] = useState<HealthResponse | null>(null)
+  const { login } = useAuth()
   const period = periodByView[currentView] ?? '6M'
   const cachedMarket = marketCache[period]
   const cachedMacro = macroCache[period]
@@ -196,6 +199,13 @@ function AppInner() {
         </AnimatedTabContent>
       )
     }
+    if (currentView === 'watchlist') {
+      return (
+        <AnimatedTabContent>
+          <WatchlistView sectors={sectors} onStockSelect={handleSearchSelect} onLogin={login} />
+        </AnimatedTabContent>
+      )
+    }
     if (currentView === 'macro') {
       const macro = cachedMacro
       if (macro?.error) {
@@ -289,7 +299,9 @@ function App() {
 
   return (
     <ThemeContext.Provider value={{ isDark, toggle: () => setIsDark(d => !d) }}>
-      <AppInner />
+      <AuthProvider>
+        <AppInner />
+      </AuthProvider>
     </ThemeContext.Provider>
   )
 }
