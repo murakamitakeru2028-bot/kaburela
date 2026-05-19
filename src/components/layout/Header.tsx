@@ -137,7 +137,7 @@ export function Header({ currentView, onViewChange, onSearchSelect }: HeaderProp
       className="absolute inset-x-0 top-0 h-11 sm:h-8 bg-paper/90 backdrop-blur-2xl shadow-[0_1px_0_rgba(0,0,0,0.06)]"
       style={{ backgroundColor: isDark ? 'rgba(30, 30, 32, 0.92)' : undefined }}
     >
-      <div className="h-full flex items-center px-3 sm:px-5 gap-2 sm:gap-4 overflow-hidden">
+      <div className="h-full flex items-center px-3 sm:px-5 gap-2 sm:gap-4 overflow-x-hidden">
         <div className="flex flex-1 items-center gap-2 sm:gap-4 min-w-0">
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <LogoMark size={18} />
@@ -261,7 +261,7 @@ export function Header({ currentView, onViewChange, onSearchSelect }: HeaderProp
                 )}
               </button>
               {userMenuOpen && (
-                <div className="absolute right-0 top-[calc(100%+6px)] w-52 bg-paper rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.14),0_0_0_1px_rgba(0,0,0,0.06)] z-50 overflow-hidden">
+                <div className="fixed right-3 top-[52px] sm:right-5 sm:top-[40px] w-52 bg-paper rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.14),0_0_0_1px_rgba(0,0,0,0.06)] z-50 overflow-hidden">
                   <div className="px-4 py-3 border-b border-border">
                     <p className="text-[13px] font-medium text-ink truncate">{user.name}</p>
                     <p className="text-[11px] text-muted truncate">{user.email}</p>
