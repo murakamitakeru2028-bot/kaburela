@@ -233,19 +233,29 @@ export function Header({ currentView, onViewChange, onSearchSelect }: HeaderProp
             )}
           </div>
 
+          <button
+            type="button"
+            onClick={toggle}
+            aria-label={themeLabel}
+            title={themeLabel}
+            className="w-10 h-10 sm:w-8 sm:h-8 rounded-[10px] flex items-center justify-center text-muted hover:text-ink hover:bg-subtle transition-colors cursor-pointer"
+          >
+            {isDark ? <SunIcon /> : <MoonIcon />}
+          </button>
+
           {user ? (
             <div className="relative" ref={userMenuRef}>
               <button
                 type="button"
                 onClick={() => setUserMenuOpen(v => !v)}
-                className="w-10 h-10 sm:w-8 sm:h-8 rounded-full flex items-center justify-center overflow-hidden border border-border hover:opacity-80 transition-opacity cursor-pointer"
+                className="w-10 h-10 sm:w-8 sm:h-8 rounded-[10px] flex items-center justify-center hover:bg-subtle transition-colors cursor-pointer"
                 aria-label="ユーザーメニュー"
                 title={user.name}
               >
                 {user.picture ? (
-                  <img src={user.picture} alt={user.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  <img src={user.picture} alt={user.name} className="w-6 h-6 sm:w-5 sm:h-5 rounded-full object-cover" referrerPolicy="no-referrer" />
                 ) : (
-                  <span className="text-[11px] font-semibold text-ink bg-subtle w-full h-full flex items-center justify-center">
+                  <span className="w-6 h-6 sm:w-5 sm:h-5 rounded-full text-[10px] font-semibold text-ink bg-subtle border border-border flex items-center justify-center">
                     {user.name.charAt(0).toUpperCase()}
                   </span>
                 )}
@@ -259,7 +269,7 @@ export function Header({ currentView, onViewChange, onSearchSelect }: HeaderProp
                   <button
                     type="button"
                     onClick={() => { logout(); setUserMenuOpen(false) }}
-                    className="w-full px-4 py-2.5 text-left text-[13px] text-ink hover:bg-subtle transition-colors cursor-pointer"
+                    className="w-full px-4 py-2.5 text-left text-[13px] text-red-500 hover:bg-subtle transition-colors cursor-pointer"
                   >
                     ログアウト
                   </button>
@@ -276,16 +286,6 @@ export function Header({ currentView, onViewChange, onSearchSelect }: HeaderProp
               ログイン
             </button>
           )}
-
-          <button
-            type="button"
-            onClick={toggle}
-            aria-label={themeLabel}
-            title={themeLabel}
-            className="w-10 h-10 sm:w-8 sm:h-8 rounded-[10px] flex items-center justify-center text-muted hover:text-ink hover:bg-subtle transition-colors cursor-pointer"
-          >
-            {isDark ? <SunIcon /> : <MoonIcon />}
-          </button>
         </div>
       </div>
     </header>
