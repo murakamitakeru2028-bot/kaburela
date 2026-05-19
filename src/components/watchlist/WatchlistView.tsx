@@ -3,14 +3,24 @@ import { useAuth } from '../../lib/AuthContext'
 import { searchStocksApi } from '../../lib/api'
 import { MiniHeatmap } from '../charts/MiniHeatmap'
 import type { SectorData, CorrelationResponse } from '../../lib/api'
+import type { View } from '../layout/tabConfig'
 import type { StockInfo } from '../../types/stock'
 
 interface WatchlistViewProps {
   sectors: SectorData[]
   correlation: CorrelationResponse | null
   onStockSelect: (stock: StockInfo) => void
+  onNavigate: (view: View) => void
   onLogin: () => void
 }
+
+const NAV_ITEMS: { view: View; label: string; color: string }[] = [
+  { view: 'trend',    label: 'トレンド',       color: '#ff6b6b' },
+  { view: 'heatmap',  label: 'ヒートマップ',   color: '#ff34ff' },
+  { view: 'network',  label: 'ネットワーク',   color: '#16a3ff' },
+  { view: 'macro',    label: 'マクロ',          color: '#ffb000' },
+  { view: 'ranking',  label: 'ランキング',      color: '#00c878' },
+]
 
 interface WatchlistItem {
   code: string
@@ -196,7 +206,7 @@ function SectorBrowser({
 }
 
 // ──────── メインビュー ────────
-export function WatchlistView({ sectors, correlation, onStockSelect, onLogin }: WatchlistViewProps) {
+export function WatchlistView({ sectors, correlation, onStockSelect, onNavigate, onLogin }: WatchlistViewProps) {
   const { user, userId } = useAuth()
   const [items, setItems] = useState<WatchlistItem[]>([])
   const [addMode, setAddMode] = useState<'search' | 'sector'>('search')
@@ -286,13 +296,36 @@ export function WatchlistView({ sectors, correlation, onStockSelect, onLogin }: 
           <p className="text-[11px] font-medium text-muted uppercase tracking-wide mb-2">
             相関マトリクス
           </p>
-          <MiniHeatmap
-            stocks={watchlistMatrix.stocks}
-            matrix={watchlistMatrix.matrix}
-            minCorr={0}
-          />
+          <div className="max-w-xs">
+            <MiniHeatmap
+              stocks={watchlistMatrix.stocks}
+              matrix={watchlistMatrix.matrix}
+              minCorr={0}
+            />
+          </div>
         </div>
       )}
+
+      {/* 他のビューへのナビゲーション */}
+      <div>
+        <p className="text-[11px] font-medium text-muted uppercase tracking-wide mb-2">分析ツール</p>
+        <div className="flex flex-wrap gap-2">
+          {NAV_ITEMS.map(({ view, label, color }) => (
+            <button
+              key={view}
+              type="button"
+              onClick={() => onNavigate(view)}
+              className="flex items-center gap-1.5 h-8 px-3 rounded-[8px] border border-border bg-paper text-[12px] font-medium text-ink hover:border-muted hover:shadow-sm transition-all cursor-pointer"
+            >
+              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+              {label}
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden className="text-muted">
+                <path d="M2 5h6M5 2l3 3-3 3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* 銘柄リスト */}
       {items.length === 0 ? (
