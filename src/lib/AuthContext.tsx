@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
+import { LoginModal } from '../components/auth/LoginModal'
 
 const GOOGLE_CLIENT_ID = (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined) ?? ''
 
@@ -22,7 +23,7 @@ const AuthContext = createContext<AuthContextValue>({
   logout: () => {},
 })
 
-// Google JWTのペイロードをバックエンドなしでデコードする（署名検証なし）
+// Google JWTのペイロードをフロントエンドでデコード（署名検証なし）
 function decodeGoogleJwt(credential: string): { sub: string; email: string; name: string; picture?: string } {
   const payload = credential.split('.')[1]
   const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'))
@@ -36,6 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try { return JSON.parse(stored) as AuthUser } catch { return null }
   })
   const [userId, setUserId] = useState<string | null>(() => localStorage.getItem('auth_user_id'))
+  const [showModal, setShowModal] = useState(false)
   const gisReady = useRef(false)
 
   const handleCredential = useCallback((credential: string) => {
@@ -50,6 +52,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('ログインエラー:', e)
     }
   }, [])
+
+  // ログイン成功時にモーダルを自動で閉じる
+  useEffect(() => {
+    if (user) setShowModal(false)
+  }, [user])
 
   useEffect(() => {
     if (!GOOGLE_CLIENT_ID) return
@@ -84,8 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [handleCredential])
 
   const login = useCallback(() => {
-    if (!gisReady.current || !window.google) return
-    window.google.accounts.id.prompt()
+    setShowModal(true)
   }, [])
 
   const logout = useCallback(() => {
@@ -99,6 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider value={{ user, userId, login, logout }}>
       {children}
+      {showModal && <LoginModal onClose={() => setShowModal(false)} />}
     </AuthContext.Provider>
   )
 }
