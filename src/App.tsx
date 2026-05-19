@@ -39,6 +39,15 @@ const EMPTY_SECTORS: SectorData[] = []
 const MIN_CORR = 0
 const VIEW_LABELS = Object.fromEntries(TABS.map(tab => [tab.id, tab.label])) as Record<View, string>
 
+type WatchlistSubView = 'trend' | 'heatmap' | 'network' | 'macro' | 'ranking'
+const WATCHLIST_SUBVIEW_LABELS: Record<WatchlistSubView, string> = {
+  trend: 'トレンド',
+  heatmap: 'ヒートマップ',
+  network: 'ネットワーク',
+  macro: 'マクロ',
+  ranking: 'ランキング',
+}
+
 const AnimatedTabContent = memo(function AnimatedTabContent({ children }: { children: ReactNode }) {
   return (
     <div className="h-full min-h-0 tab-panel-motion">
@@ -56,6 +65,7 @@ function AppInner() {
   const [macroCache, setMacroCache] = useState<MacroCache>({})
   const [health, setHealth] = useState<HealthResponse | null>(null)
   const [watchlistFilter, setWatchlistFilter] = useState<string[] | null>(null)
+  const [watchlistSubView, setWatchlistSubView] = useState<WatchlistSubView | null>(null)
   const { login } = useAuth()
   const period = periodByView[currentView] ?? '6M'
   const cachedMarket = marketCache[period]
@@ -100,7 +110,8 @@ function AppInner() {
   }, [])
 
   useEffect(() => {
-    if (currentView !== 'macro') return
+    const needsMacro = currentView === 'macro' || (currentView === 'watchlist' && watchlistSubView === 'macro')
+    if (!needsMacro) return
     if (cachedMacro) return
     let cancelled = false
     fetchMacro(period)
@@ -118,7 +129,7 @@ function AppInner() {
         }
       })
     return () => { cancelled = true }
-  }, [period, currentView, cachedMacro])
+  }, [period, currentView, watchlistSubView, cachedMacro])
 
   const market = cachedMarket
   const isLoading = !market
@@ -143,7 +154,46 @@ function AppInner() {
     return { stocks: filteredStocks, matrix: filteredMatrix }
   }, [correlation, watchlistFilter])
 
-  const networkCorrelation = currentView === 'network' ? displayCorrelation : null
+  const isNetworkView = currentView === 'network' || (currentView === 'watchlist' && watchlistSubView === 'network')
+  const networkCorrelation = isNetworkView ? displayCorrelation : null
+
+  // watchlistサブビューのコンテンツをレンダリング
+  function renderWatchlistSubContent(): ReactNode {
+    if (watchlistSubView === 'trend') {
+      return <TrendView period={period} sectors={displaySectors} minCorr={MIN_CORR} onStockSelect={handleSearchSelect} />
+    }
+    if (watchlistSubView === 'heatmap') {
+      return <SectorHeatmaps sectors={displaySectors} minCorr={MIN_CORR} onStockSelect={handleSearchSelect} />
+    }
+    if (watchlistSubView === 'network' && networkCorrelation) {
+      return (
+        <NetworkGraph
+          stocks={networkCorrelation.stocks}
+          matrix={networkCorrelation.matrix}
+          minCorr={MIN_CORR}
+          sectors={displaySectors}
+          period={period}
+          onStockSelect={handleSearchSelect}
+        />
+      )
+    }
+    if (watchlistSubView === 'ranking') {
+      return <RankingView sectors={displaySectors} correlation={displayCorrelation} minCorr={MIN_CORR} onStockSelect={handleSearchSelect} />
+    }
+    if (watchlistSubView === 'macro') {
+      const macro = cachedMacro
+      if (macro?.error) return <ErrorView message={macro.error} />
+      if (!macro?.data) {
+        return (
+          <div className="h-full flex items-center justify-center">
+            <p className="text-[13px] text-muted">マクロデータを読み込み中...</p>
+          </div>
+        )
+      }
+      return <MacroHeatmap data={macro.data} sectors={displaySectors} onStockSelect={handleSearchSelect} />
+    }
+    return null
+  }
 
   function renderMain() {
     if (currentView === 'home') {
@@ -218,6 +268,35 @@ function AppInner() {
       )
     }
     if (currentView === 'watchlist') {
+      if (watchlistSubView !== null) {
+        return (
+          <AnimatedTabContent>
+            <div className="h-full min-h-0 flex flex-col">
+              {/* 戻るボタン */}
+              <div className="shrink-0 flex items-center gap-2 px-1 pb-1.5 border-b border-border/70 mb-1">
+                <button
+                  type="button"
+                  onClick={() => setWatchlistSubView(null)}
+                  className="flex items-center gap-1 text-[12px] text-muted hover:text-ink transition-colors cursor-pointer"
+                >
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
+                    <path d="M7.5 2L3 6l4.5 4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  マイリスト
+                </button>
+                <span className="text-[11px] text-muted font-mono">
+                  / {WATCHLIST_SUBVIEW_LABELS[watchlistSubView]}（{watchlistFilter?.length ?? 0}銘柄）
+                </span>
+              </div>
+              <div className="flex-1 min-h-0">
+                <Suspense fallback={<LoadingView />}>
+                  {renderWatchlistSubContent()}
+                </Suspense>
+              </div>
+            </div>
+          </AnimatedTabContent>
+        )
+      }
       return (
         <AnimatedTabContent>
           <WatchlistView sectors={sectors} correlation={correlation} onStockSelect={handleSearchSelect} onNavigate={handleWatchlistNavigate} onLogin={login} />
@@ -262,17 +341,16 @@ function AppInner() {
     setCurrentView(view)
     if (view !== 'chart') setChartReturnView(null)
     setWatchlistFilter(null)
+    setWatchlistSubView(null)
   }, [currentView])
 
-  // マイリストから絞り込み遷移
+  // マイリスト内からサブビューへ遷移（currentViewはwatchlistのまま）
   const handleWatchlistNavigate = useCallback((view: View, filterCodes: string[]) => {
     setWatchlistFilter(filterCodes.length > 0 ? filterCodes : null)
-    setPeriodByView(prev => (prev[view] ? prev : { ...prev, [view]: prev[currentView] ?? '6M' }))
-    setCurrentView(view)
-    setChartReturnView(null)
-  }, [currentView])
+    setWatchlistSubView(view as WatchlistSubView)
+  }, [])
 
-  const isNetworkActive = currentView === 'network' && !isLoading && !error && networkCorrelation !== null
+  const isNetworkActive = isNetworkView && !isLoading && !error && networkCorrelation !== null
 
   return (
     <div className="h-dvh min-h-[480px] flex flex-col bg-bg font-sans overflow-hidden">
@@ -286,7 +364,7 @@ function AppInner() {
       <div className="flex flex-1 overflow-hidden px-3 py-3 sm:px-6 sm:py-4 md:px-10 lg:px-16 xl:px-24 2xl:px-32">
         <main className={`min-w-0 flex-1 flex flex-col ${isNetworkActive ? 'overflow-hidden' : 'overflow-auto'}`}>
           <div
-            key={`${currentView}:${currentView === 'chart' ? chartInitialStock?.code ?? 'none' : ''}`}
+            key={`${currentView}:${currentView === 'chart' ? chartInitialStock?.code ?? 'none' : ''}:${currentView === 'watchlist' ? (watchlistSubView ?? '') : ''}`}
             className="min-h-0 flex-1 flex flex-col"
           >
             {currentView !== 'home' && !error && (
@@ -298,19 +376,6 @@ function AppInner() {
                   correlation={correlation}
                   health={health}
                 />
-              </div>
-            )}
-            {watchlistFilter && currentView !== 'watchlist' && (
-              <div className="shrink-0 flex items-center gap-2 px-1 pb-1 text-[11px] text-muted font-mono">
-                <span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" style={{ backgroundColor: '#16a3ff' }} />
-                マイリスト {watchlistFilter.length}銘柄でフィルター中
-                <button
-                  type="button"
-                  onClick={() => setWatchlistFilter(null)}
-                  className="underline underline-offset-2 hover:text-ink transition-colors cursor-pointer"
-                >
-                  解除
-                </button>
               </div>
             )}
             <div className="min-h-0 flex-1">
