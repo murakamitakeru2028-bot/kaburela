@@ -1,4 +1,4 @@
-import { lazy, memo, Suspense, useCallback, useEffect, useState, type ReactNode } from 'react'
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { ThemeContext } from './lib/ThemeContext'
 import { AuthProvider, useAuth } from './lib/AuthContext'
 import { Header } from './components/layout/Header'
@@ -55,6 +55,7 @@ function AppInner() {
   const [marketCache, setMarketCache] = useState<MarketCache>({})
   const [macroCache, setMacroCache] = useState<MacroCache>({})
   const [health, setHealth] = useState<HealthResponse | null>(null)
+  const [watchlistFilter, setWatchlistFilter] = useState<string[] | null>(null)
   const { login } = useAuth()
   const period = periodByView[currentView] ?? '6M'
   const cachedMarket = marketCache[period]
@@ -125,7 +126,24 @@ function AppInner() {
   const correlation = market?.correlation ?? null
   const error = market?.error ?? null
 
-  const networkCorrelation = currentView === 'network' ? correlation : null
+  // マイリストフィルターが有効な場合、対象銘柄だけに絞る
+  const displaySectors = useMemo(() => {
+    if (!watchlistFilter) return sectors
+    return sectors
+      .map(s => ({ ...s, stocks: s.stocks.filter(st => watchlistFilter.includes(st.code)) }))
+      .filter(s => s.stocks.length > 0)
+  }, [sectors, watchlistFilter])
+
+  const displayCorrelation = useMemo((): CorrelationResponse | null => {
+    if (!watchlistFilter || !correlation) return correlation
+    const filteredStocks = correlation.stocks.filter(st => watchlistFilter.includes(st.code))
+    if (filteredStocks.length === 0) return null
+    const origIndices = filteredStocks.map(st => correlation.stocks.findIndex(cs => cs.code === st.code))
+    const filteredMatrix = origIndices.map(i => origIndices.map(j => correlation.matrix[i][j]))
+    return { stocks: filteredStocks, matrix: filteredMatrix }
+  }, [correlation, watchlistFilter])
+
+  const networkCorrelation = currentView === 'network' ? displayCorrelation : null
 
   function renderMain() {
     if (currentView === 'home') {
@@ -143,7 +161,7 @@ function AppInner() {
         <AnimatedTabContent>
           <TrendView
             period={period}
-            sectors={sectors}
+            sectors={displaySectors}
             minCorr={MIN_CORR}
             onStockSelect={handleSearchSelect}
           />
@@ -153,7 +171,7 @@ function AppInner() {
     if (currentView === 'heatmap') {
       return (
         <AnimatedTabContent>
-          <SectorHeatmaps sectors={sectors} minCorr={MIN_CORR} onStockSelect={handleSearchSelect} />
+          <SectorHeatmaps sectors={displaySectors} minCorr={MIN_CORR} onStockSelect={handleSearchSelect} />
         </AnimatedTabContent>
       )
     }
@@ -164,7 +182,7 @@ function AppInner() {
             stocks={networkCorrelation.stocks}
             matrix={networkCorrelation.matrix}
             minCorr={MIN_CORR}
-            sectors={sectors}
+            sectors={displaySectors}
             period={period}
             onStockSelect={handleSearchSelect}
           />
@@ -175,8 +193,8 @@ function AppInner() {
       return (
         <AnimatedTabContent>
           <RankingView
-            sectors={sectors}
-            correlation={correlation}
+            sectors={displaySectors}
+            correlation={displayCorrelation}
             minCorr={MIN_CORR}
             onStockSelect={handleSearchSelect}
           />
@@ -202,7 +220,7 @@ function AppInner() {
     if (currentView === 'watchlist') {
       return (
         <AnimatedTabContent>
-          <WatchlistView sectors={sectors} correlation={correlation} onStockSelect={handleSearchSelect} onNavigate={handleViewChange} onLogin={login} />
+          <WatchlistView sectors={sectors} correlation={correlation} onStockSelect={handleSearchSelect} onNavigate={handleWatchlistNavigate} onLogin={login} />
         </AnimatedTabContent>
       )
     }
@@ -220,7 +238,7 @@ function AppInner() {
       }
       return (
         <AnimatedTabContent>
-          <MacroHeatmap data={macro.data} sectors={sectors} onStockSelect={handleSearchSelect} />
+          <MacroHeatmap data={macro.data} sectors={displaySectors} onStockSelect={handleSearchSelect} />
         </AnimatedTabContent>
       )
     }
@@ -243,6 +261,15 @@ function AppInner() {
     setPeriodByView(prev => (prev[view] ? prev : { ...prev, [view]: prev[currentView] ?? '6M' }))
     setCurrentView(view)
     if (view !== 'chart') setChartReturnView(null)
+    setWatchlistFilter(null)
+  }, [currentView])
+
+  // マイリストから絞り込み遷移
+  const handleWatchlistNavigate = useCallback((view: View, filterCodes: string[]) => {
+    setWatchlistFilter(filterCodes.length > 0 ? filterCodes : null)
+    setPeriodByView(prev => (prev[view] ? prev : { ...prev, [view]: prev[currentView] ?? '6M' }))
+    setCurrentView(view)
+    setChartReturnView(null)
   }, [currentView])
 
   const isNetworkActive = currentView === 'network' && !isLoading && !error && networkCorrelation !== null
@@ -271,6 +298,19 @@ function AppInner() {
                   correlation={correlation}
                   health={health}
                 />
+              </div>
+            )}
+            {watchlistFilter && currentView !== 'watchlist' && (
+              <div className="shrink-0 flex items-center gap-2 px-1 pb-1 text-[11px] text-muted font-mono">
+                <span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" style={{ backgroundColor: '#16a3ff' }} />
+                マイリスト {watchlistFilter.length}銘柄でフィルター中
+                <button
+                  type="button"
+                  onClick={() => setWatchlistFilter(null)}
+                  className="underline underline-offset-2 hover:text-ink transition-colors cursor-pointer"
+                >
+                  解除
+                </button>
               </div>
             )}
             <div className="min-h-0 flex-1">
