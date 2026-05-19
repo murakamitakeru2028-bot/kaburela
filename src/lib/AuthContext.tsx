@@ -26,8 +26,10 @@ const AuthContext = createContext<AuthContextValue>({
 // Google JWTのペイロードをフロントエンドでデコード（署名検証なし）
 function decodeGoogleJwt(credential: string): { sub: string; email: string; name: string; picture?: string } {
   const payload = credential.split('.')[1]
-  const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'))
-  return JSON.parse(decoded) as { sub: string; email: string; name: string; picture?: string }
+  const base64 = payload.replace(/-/g, '+').replace(/_/g, '/')
+  // atob()はバイナリ文字列を返すため、TextDecoderでUTF-8として正しく変換する
+  const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0))
+  return JSON.parse(new TextDecoder().decode(bytes)) as { sub: string; email: string; name: string; picture?: string }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
