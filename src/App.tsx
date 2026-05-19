@@ -202,7 +202,7 @@ function AppInner() {
     if (currentView === 'watchlist') {
       return (
         <AnimatedTabContent>
-          <WatchlistView sectors={sectors} onStockSelect={handleSearchSelect} onLogin={login} />
+          <WatchlistView sectors={sectors} correlation={correlation} onStockSelect={handleSearchSelect} onLogin={login} />
         </AnimatedTabContent>
       )
     }

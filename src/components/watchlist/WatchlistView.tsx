@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '../../lib/AuthContext'
 import { searchStocksApi } from '../../lib/api'
-import type { SectorData } from '../../lib/api'
+import { MiniHeatmap } from '../charts/MiniHeatmap'
+import type { SectorData, CorrelationResponse } from '../../lib/api'
 import type { StockInfo } from '../../types/stock'
 
 interface WatchlistViewProps {
   sectors: SectorData[]
+  correlation: CorrelationResponse | null
   onStockSelect: (stock: StockInfo) => void
   onLogin: () => void
 }
@@ -25,67 +27,186 @@ function buildStockMap(sectors: SectorData[]): Map<string, StockInfo & { sector:
   return map
 }
 
-function watchlistKey(userId: string) {
-  return `kaburela_watchlist_${userId}`
+function buildWatchlistMatrix(items: WatchlistItem[], correlation: CorrelationResponse | null) {
+  if (!correlation || items.length < 2) return null
+  const codeToIdx = new Map(correlation.stocks.map((s, i) => [s.code, i]))
+  const matched = items
+    .map(item => ({ stock: correlation.stocks[codeToIdx.get(item.code)!], idx: codeToIdx.get(item.code) }))
+    .filter(w => w.idx !== undefined) as { stock: StockInfo; idx: number }[]
+  if (matched.length < 2) return null
+  const stocks = matched.map(w => w.stock)
+  const matrix = matched.map(a => matched.map(b => a.idx === b.idx ? 1.0 : (correlation.matrix[a.idx][b.idx] ?? 0)))
+  return { stocks, matrix }
 }
 
+function watchlistKey(userId: string) { return `kaburela_watchlist_${userId}` }
 function loadFromStorage(userId: string): WatchlistItem[] {
   try {
-    const stored = localStorage.getItem(watchlistKey(userId))
-    return stored ? (JSON.parse(stored) as WatchlistItem[]) : []
-  } catch {
-    return []
-  }
+    const s = localStorage.getItem(watchlistKey(userId))
+    return s ? (JSON.parse(s) as WatchlistItem[]) : []
+  } catch { return [] }
 }
-
 function saveToStorage(userId: string, items: WatchlistItem[]) {
   localStorage.setItem(watchlistKey(userId), JSON.stringify(items))
 }
 
 function StarIcon() {
   return (
-    <svg width="14" height="14" viewBox="0 0 15 15" fill="none" aria-hidden>
-      <path
-        d="M7.5 1L9.18 5.27L13.5 5.64L10.5 8.27L11.68 12.5L7.5 10.1L3.32 12.5L4.5 8.27L1.5 5.64L5.82 5.27L7.5 1Z"
-        stroke="currentColor"
-        strokeWidth="1.25"
-        strokeLinejoin="round"
-      />
+    <svg width="20" height="20" viewBox="0 0 15 15" fill="none" aria-hidden>
+      <path d="M7.5 1L9.18 5.27L13.5 5.64L10.5 8.27L11.68 12.5L7.5 10.1L3.32 12.5L4.5 8.27L1.5 5.64L5.82 5.27L7.5 1Z" stroke="currentColor" strokeWidth="1.25" strokeLinejoin="round" />
     </svg>
   )
 }
 
-export function WatchlistView({ sectors, onStockSelect, onLogin }: WatchlistViewProps) {
-  const { user, userId } = useAuth()
-  const [items, setItems] = useState<WatchlistItem[]>([])
-  const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<StockInfo[]>([])
+function ChevronIcon({ open }: { open: boolean }) {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden className={`transition-transform ${open ? 'rotate-180' : ''}`}>
+      <path d="M2 4L6 8L10 4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+// ──────── 検索パネル ────────
+function SearchPanel({
+  watchedCodes,
+  onAdd,
+}: {
+  watchedCodes: Set<string>
+  onAdd: (code: string) => void
+}) {
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<StockInfo[]>([])
   const [isSearching, setIsSearching] = useState(false)
-  const stockMap = buildStockMap(sectors)
-
-  // ユーザーが変わったらlocalStorageからロード
-  useEffect(() => {
-    if (!userId) { setItems([]); return }
-    setItems(loadFromStorage(userId))
-  }, [userId])
 
   useEffect(() => {
-    const q = searchQuery.trim()
-    if (!q) { setSearchResults([]); return }
+    const q = query.trim()
+    if (!q) { setResults([]); return }
     let cancelled = false
     const timer = setTimeout(async () => {
       setIsSearching(true)
       try {
-        const results = await searchStocksApi(q)
-        if (!cancelled) setSearchResults(results.slice(0, 6))
+        const r = await searchStocksApi(q)
+        if (!cancelled) setResults(r.slice(0, 6))
       } catch {
-        if (!cancelled) setSearchResults([])
+        if (!cancelled) setResults([])
       } finally {
         if (!cancelled) setIsSearching(false)
       }
     }, 200)
     return () => { cancelled = true; clearTimeout(timer) }
-  }, [searchQuery])
+  }, [query])
+
+  return (
+    <div className="relative">
+      <div className="flex items-center gap-2 px-3 h-9 rounded-[10px] bg-subtle border border-border">
+        {isSearching ? (
+          <div className="w-3 h-3 border border-border border-t-muted rounded-full animate-spin shrink-0" />
+        ) : (
+          <svg width="13" height="13" viewBox="0 0 15 15" fill="none" className="text-muted shrink-0" aria-hidden>
+            <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" strokeWidth="1.5" />
+            <path d="M10.5 10.5L13.5 13.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        )}
+        <input
+          type="text"
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          placeholder="銘柄コード・名前で検索..."
+          className="flex-1 bg-transparent text-[13px] text-ink placeholder:text-muted outline-none"
+        />
+        {query && (
+          <button type="button" onClick={() => { setQuery(''); setResults([]) }} className="text-muted hover:text-ink cursor-pointer shrink-0" aria-label="クリア">
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden>
+              <path d="M1.5 1.5L10.5 10.5M10.5 1.5L1.5 10.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+            </svg>
+          </button>
+        )}
+      </div>
+      {results.length > 0 && (
+        <div className="absolute left-0 right-0 top-[calc(100%+4px)] bg-paper rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.14),0_0_0_1px_rgba(0,0,0,0.06)] z-20 overflow-hidden">
+          {results.map(stock => (
+            <div key={stock.code} className="flex items-center gap-3 px-4 py-2.5 hover:bg-subtle transition-colors">
+              <span className="text-[11px] font-mono text-muted w-10 shrink-0">{stock.code}</span>
+              <span className="text-[13px] text-ink flex-1 truncate">{stock.name}</span>
+              <button
+                type="button"
+                onClick={() => { onAdd(stock.code); setQuery(''); setResults([]) }}
+                disabled={watchedCodes.has(stock.code)}
+                className="text-[11px] px-2 py-1 rounded-lg bg-ink text-paper disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-80 transition-opacity cursor-pointer shrink-0"
+              >
+                {watchedCodes.has(stock.code) ? '追加済' : '追加'}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ──────── セクターブラウザ ────────
+function SectorBrowser({
+  sectors,
+  watchedCodes,
+  onAdd,
+}: {
+  sectors: SectorData[]
+  watchedCodes: Set<string>
+  onAdd: (code: string) => void
+}) {
+  const [expanded, setExpanded] = useState<string | null>(null)
+
+  return (
+    <div className="rounded-[10px] border border-border overflow-hidden">
+      {sectors.map((sector, i) => (
+        <div key={sector.name} className={i > 0 ? 'border-t border-border' : ''}>
+          <button
+            type="button"
+            onClick={() => setExpanded(prev => prev === sector.name ? null : sector.name)}
+            className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-subtle transition-colors cursor-pointer text-left"
+          >
+            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: sector.color }} />
+            <span className="text-[13px] font-medium text-ink flex-1">{sector.name}</span>
+            <span className="text-[11px] text-muted mr-1">{sector.stocks.length}銘柄</span>
+            <ChevronIcon open={expanded === sector.name} />
+          </button>
+
+          {expanded === sector.name && (
+            <div className="border-t border-border bg-subtle/50 max-h-48 overflow-y-auto">
+              {sector.stocks.map(stock => (
+                <div key={stock.code} className="flex items-center gap-3 px-4 py-2 hover:bg-subtle transition-colors">
+                  <span className="text-[11px] font-mono text-muted w-10 shrink-0">{stock.code}</span>
+                  <span className="text-[13px] text-ink flex-1 truncate">{stock.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => onAdd(stock.code)}
+                    disabled={watchedCodes.has(stock.code)}
+                    className="text-[11px] px-2 py-1 rounded-lg bg-ink text-paper disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-80 transition-opacity cursor-pointer shrink-0"
+                  >
+                    {watchedCodes.has(stock.code) ? '追加済' : '追加'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ──────── メインビュー ────────
+export function WatchlistView({ sectors, correlation, onStockSelect, onLogin }: WatchlistViewProps) {
+  const { user, userId } = useAuth()
+  const [items, setItems] = useState<WatchlistItem[]>([])
+  const [addMode, setAddMode] = useState<'search' | 'sector'>('search')
+  const stockMap = buildStockMap(sectors)
+  const watchlistMatrix = buildWatchlistMatrix(items, correlation)
+
+  useEffect(() => {
+    if (!userId) { setItems([]); return }
+    setItems(loadFromStorage(userId))
+  }, [userId])
 
   const handleAdd = useCallback((code: string) => {
     if (!userId) return
@@ -95,8 +216,6 @@ export function WatchlistView({ sectors, onStockSelect, onLogin }: WatchlistView
       saveToStorage(userId, next)
       return next
     })
-    setSearchQuery('')
-    setSearchResults([])
   }, [userId])
 
   const handleRemove = useCallback((code: string) => {
@@ -108,7 +227,6 @@ export function WatchlistView({ sectors, onStockSelect, onLogin }: WatchlistView
     })
   }, [userId])
 
-  // 未ログイン時
   if (!user) {
     return (
       <div className="h-full flex flex-col items-center justify-center gap-4 text-center px-6">
@@ -133,70 +251,59 @@ export function WatchlistView({ sectors, onStockSelect, onLogin }: WatchlistView
   const watchedCodes = new Set(items.map(i => i.code))
 
   return (
-    <div className="h-full flex flex-col gap-4 pt-2">
-      {/* 銘柄追加検索 */}
-      <div className="relative">
-        <div className="flex items-center gap-2 px-3 h-9 rounded-[10px] bg-subtle border border-border">
-          {isSearching ? (
-            <div className="w-3 h-3 border border-border border-t-muted rounded-full animate-spin shrink-0" />
-          ) : (
-            <svg width="13" height="13" viewBox="0 0 15 15" fill="none" className="text-muted shrink-0" aria-hidden>
-              <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" strokeWidth="1.5" />
-              <path d="M10.5 10.5L13.5 13.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-            </svg>
-          )}
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            placeholder="銘柄を検索して追加..."
-            className="flex-1 bg-transparent text-[13px] text-ink placeholder:text-muted outline-none"
-          />
-          {searchQuery && (
+    <div className="flex flex-col gap-5 pb-8 pt-1">
+
+      {/* 銘柄追加エリア */}
+      <div className="flex flex-col gap-2">
+        {/* 検索 / セクタータブ */}
+        <div className="flex gap-1 p-0.5 rounded-[10px] bg-subtle w-fit">
+          {(['search', 'sector'] as const).map(mode => (
             <button
+              key={mode}
               type="button"
-              onClick={() => { setSearchQuery(''); setSearchResults([]) }}
-              className="text-muted hover:text-ink cursor-pointer shrink-0"
-              aria-label="クリア"
+              onClick={() => setAddMode(mode)}
+              className={`px-3 h-7 rounded-[8px] text-[12px] font-medium transition-colors cursor-pointer ${
+                addMode === mode
+                  ? 'bg-paper text-ink shadow-sm'
+                  : 'text-muted hover:text-ink'
+              }`}
             >
-              <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden>
-                <path d="M1.5 1.5L10.5 10.5M10.5 1.5L1.5 10.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-              </svg>
+              {mode === 'search' ? '検索' : 'セクターから探す'}
             </button>
-          )}
+          ))}
         </div>
 
-        {searchResults.length > 0 && (
-          <div className="absolute left-0 right-0 top-[calc(100%+4px)] bg-paper rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.14),0_0_0_1px_rgba(0,0,0,0.06)] z-10 overflow-hidden">
-            {searchResults.map(stock => (
-              <div
-                key={stock.code}
-                className="flex items-center gap-3 px-4 py-2.5 hover:bg-subtle transition-colors"
-              >
-                <span className="text-[11px] font-mono text-muted w-10 shrink-0">{stock.code}</span>
-                <span className="text-[13px] text-ink flex-1 truncate">{stock.name}</span>
-                <button
-                  type="button"
-                  onClick={() => handleAdd(stock.code)}
-                  disabled={watchedCodes.has(stock.code)}
-                  className="text-[11px] px-2 py-1 rounded-lg bg-ink text-paper disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-80 transition-opacity cursor-pointer shrink-0"
-                >
-                  {watchedCodes.has(stock.code) ? '追加済' : '追加'}
-                </button>
-              </div>
-            ))}
-          </div>
+        {addMode === 'search' ? (
+          <SearchPanel watchedCodes={watchedCodes} onAdd={handleAdd} />
+        ) : (
+          <SectorBrowser sectors={sectors} watchedCodes={watchedCodes} onAdd={handleAdd} />
         )}
       </div>
 
-      {/* リスト本体 */}
-      {items.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center gap-2 text-center">
-          <p className="text-[13px] text-muted">まだ銘柄がありません</p>
-          <p className="text-[12px] text-muted">上の検索から追加してください</p>
+      {/* 相関マトリクス（2銘柄以上のとき表示） */}
+      {watchlistMatrix && (
+        <div>
+          <p className="text-[11px] font-medium text-muted uppercase tracking-wide mb-2">
+            相関マトリクス
+          </p>
+          <MiniHeatmap
+            stocks={watchlistMatrix.stocks}
+            matrix={watchlistMatrix.matrix}
+            minCorr={0}
+          />
         </div>
+      )}
+
+      {/* 銘柄リスト */}
+      {items.length === 0 ? (
+        <p className="text-[13px] text-muted text-center py-8">
+          まだ銘柄がありません。上から追加してください。
+        </p>
       ) : (
-        <div className="flex-1 overflow-auto -mx-1 px-1">
+        <div>
+          <p className="text-[11px] font-medium text-muted uppercase tracking-wide mb-2">
+            保存中 {items.length}銘柄
+          </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
             {items.map(item => {
               const stock = stockMap.get(item.code)
@@ -211,17 +318,11 @@ export function WatchlistView({ sectors, onStockSelect, onLogin }: WatchlistView
                     className="flex-1 min-w-0 text-left cursor-pointer"
                   >
                     <div className="flex items-center gap-2">
-                      {stock?.color && (
-                        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: stock.color }} />
-                      )}
+                      {stock?.color && <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: stock.color }} />}
                       <span className="text-[11px] font-mono text-muted">{item.code}</span>
                     </div>
-                    <p className="text-[13px] font-medium text-ink truncate mt-0.5">
-                      {stock?.name ?? item.code}
-                    </p>
-                    {stock?.sector && (
-                      <p className="text-[11px] text-muted truncate">{stock.sector}</p>
-                    )}
+                    <p className="text-[13px] font-medium text-ink truncate mt-0.5">{stock?.name ?? item.code}</p>
+                    {stock?.sector && <p className="text-[11px] text-muted truncate">{stock.sector}</p>}
                   </button>
                   <button
                     type="button"
