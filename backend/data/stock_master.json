@@ -1458,6 +1458,15 @@
     "size_rank": 4
   },
   {
+    "code": "277A",
+    "ticker": "277A.T",
+    "name": "グロービング",
+    "label": "グロービング",
+    "sector": "サービス業",
+    "size": "TOPIX Small 2",
+    "size_rank": 4
+  },
+  {
     "code": "4301",
     "ticker": "4301.T",
     "name": "アミューズ",
@@ -1633,15 +1642,6 @@
     "ticker": "6027.T",
     "name": "弁護士ドットコム",
     "label": "弁護士ドットコム",
-    "sector": "サービス業",
-    "size": "TOPIX Small 2",
-    "size_rank": 4
-  },
-  {
-    "code": "6047",
-    "ticker": "6047.T",
-    "name": "Ｇｕｎｏｓｙ",
-    "label": "Ｇｕｎｏｓｙ",
     "sector": "サービス業",
     "size": "TOPIX Small 2",
     "size_rank": 4
@@ -2070,15 +2070,6 @@
     "size_rank": 9
   },
   {
-    "code": "277A",
-    "ticker": "277A.T",
-    "name": "グロービング",
-    "label": "グロービング",
-    "sector": "サービス業",
-    "size": "-",
-    "size_rank": 9
-  },
-  {
     "code": "5261",
     "ticker": "5261.T",
     "name": "リソルホールディングス",
@@ -2092,15 +2083,6 @@
     "ticker": "7059.T",
     "name": "コプロ・ホールディングス",
     "label": "コプロ・ホール…",
-    "sector": "サービス業",
-    "size": "-",
-    "size_rank": 9
-  },
-  {
-    "code": "7088",
-    "ticker": "7088.T",
-    "name": "フォーラムエンジニアリング",
-    "label": "フォーラムエン…",
     "sector": "サービス業",
     "size": "-",
     "size_rank": 9
@@ -2934,15 +2916,6 @@
     "size_rank": 2
   },
   {
-    "code": "4088",
-    "ticker": "4088.T",
-    "name": "エア・ウォーター",
-    "label": "エア・ウォーター",
-    "sector": "化学",
-    "size": "TOPIX Mid400",
-    "size_rank": 2
-  },
-  {
     "code": "4091",
     "ticker": "4091.T",
     "name": "日本酸素ホールディングス",
@@ -3384,15 +3357,6 @@
     "size_rank": 3
   },
   {
-    "code": "4917",
-    "ticker": "4917.T",
-    "name": "マンダム",
-    "label": "マンダム",
-    "sector": "化学",
-    "size": "TOPIX Small 1",
-    "size_rank": 3
-  },
-  {
     "code": "4919",
     "ticker": "4919.T",
     "name": "ミルボン",
@@ -3424,15 +3388,6 @@
     "ticker": "4971.T",
     "name": "メック",
     "label": "メック",
-    "sector": "化学",
-    "size": "TOPIX Small 1",
-    "size_rank": 3
-  },
-  {
-    "code": "4974",
-    "ticker": "4974.T",
-    "name": "タカラバイオ",
-    "label": "タカラバイオ",
     "sector": "化学",
     "size": "TOPIX Small 1",
     "size_rank": 3
@@ -3834,15 +3789,6 @@
     "size_rank": 4
   },
   {
-    "code": "7925",
-    "ticker": "7925.T",
-    "name": "前澤化成工業",
-    "label": "前澤化成工業",
-    "sector": "化学",
-    "size": "TOPIX Small 2",
-    "size_rank": 4
-  },
-  {
     "code": "7931",
     "ticker": "7931.T",
     "name": "未来工業",
@@ -3859,6 +3805,24 @@
     "sector": "化学",
     "size": "TOPIX Small 2",
     "size_rank": 4
+  },
+  {
+    "code": "4088",
+    "ticker": "4088.T",
+    "name": "エア・ウォーター",
+    "label": "エア・ウォーター",
+    "sector": "化学",
+    "size": "-",
+    "size_rank": 9
+  },
+  {
+    "code": "4974",
+    "ticker": "4974.T",
+    "name": "タカラバイオ",
+    "label": "タカラバイオ",
+    "sector": "化学",
+    "size": "-",
+    "size_rank": 9
   },
   {
     "code": "4502",
@@ -4138,15 +4102,6 @@
     "sector": "医薬品",
     "size": "TOPIX Small 2",
     "size_rank": 4
-  },
-  {
-    "code": "4530",
-    "ticker": "4530.T",
-    "name": "久光製薬",
-    "label": "久光製薬",
-    "sector": "医薬品",
-    "size": "-",
-    "size_rank": 9
   },
   {
     "code": "8001",
@@ -4711,15 +4666,6 @@
     "ticker": "2676.T",
     "name": "高千穂交易",
     "label": "高千穂交易",
-    "sector": "卸売業",
-    "size": "TOPIX Small 2",
-    "size_rank": 4
-  },
-  {
-    "code": "2692",
-    "ticker": "2692.T",
-    "name": "伊藤忠食品",
-    "label": "伊藤忠食品",
     "sector": "卸売業",
     "size": "TOPIX Small 2",
     "size_rank": 4
@@ -6795,15 +6741,6 @@
     "size_rank": 3
   },
   {
-    "code": "1726",
-    "ticker": "1726.T",
-    "name": "ビーアールホールディングス",
-    "label": "ビーアールホー…",
-    "sector": "建設業",
-    "size": "TOPIX Small 2",
-    "size_rank": 4
-  },
-  {
     "code": "1762",
     "ticker": "1762.T",
     "name": "高松コンストラクショングループ",
@@ -7033,6 +6970,15 @@
     "ticker": "1433.T",
     "name": "ベステラ",
     "label": "ベステラ",
+    "sector": "建設業",
+    "size": "-",
+    "size_rank": 9
+  },
+  {
+    "code": "1726",
+    "ticker": "1726.T",
+    "name": "ビーアールホールディングス",
+    "label": "ビーアールホー…",
     "sector": "建設業",
     "size": "-",
     "size_rank": 9
@@ -7515,15 +7461,6 @@
     "size_rank": 3
   },
   {
-    "code": "4384",
-    "ticker": "4384.T",
-    "name": "ラクスル",
-    "label": "ラクスル",
-    "sector": "情報・通信業",
-    "size": "TOPIX Small 1",
-    "size_rank": 3
-  },
-  {
     "code": "4432",
     "ticker": "4432.T",
     "name": "ウイングアーク１ｓｔ",
@@ -7879,15 +7816,6 @@
     "ticker": "3679.T",
     "name": "じげん",
     "label": "じげん",
-    "sector": "情報・通信業",
-    "size": "TOPIX Small 2",
-    "size_rank": 4
-  },
-  {
-    "code": "3681",
-    "ticker": "3681.T",
-    "name": "ブイキューブ",
-    "label": "ブイキューブ",
     "sector": "情報・通信業",
     "size": "TOPIX Small 2",
     "size_rank": 4
@@ -8476,6 +8404,15 @@
     "sector": "情報・通信業",
     "size": "TOPIX Small 2",
     "size_rank": 4
+  },
+  {
+    "code": "3681",
+    "ticker": "3681.T",
+    "name": "ブイキューブ",
+    "label": "ブイキューブ",
+    "sector": "情報・通信業",
+    "size": "-",
+    "size_rank": 9
   },
   {
     "code": "3963",
@@ -10035,15 +9972,6 @@
     "size_rank": 3
   },
   {
-    "code": "3593",
-    "ticker": "3593.T",
-    "name": "ホギメディカル",
-    "label": "ホギメディカル",
-    "sector": "繊維製品",
-    "size": "TOPIX Small 1",
-    "size_rank": 3
-  },
-  {
     "code": "3608",
     "ticker": "3608.T",
     "name": "ＴＳＩホールディングス",
@@ -10312,15 +10240,6 @@
     "sector": "輸送用機器",
     "size": "TOPIX Core30",
     "size_rank": 0
-  },
-  {
-    "code": "6201",
-    "ticker": "6201.T",
-    "name": "豊田自動織機",
-    "label": "豊田自動織機",
-    "sector": "輸送用機器",
-    "size": "TOPIX Large70",
-    "size_rank": 1
   },
   {
     "code": "6902",
@@ -10645,6 +10564,15 @@
     "sector": "輸送用機器",
     "size": "TOPIX Small 2",
     "size_rank": 4
+  },
+  {
+    "code": "6201",
+    "ticker": "6201.T",
+    "name": "豊田自動織機",
+    "label": "豊田自動織機",
+    "sector": "輸送用機器",
+    "size": "-",
+    "size_rank": 9
   },
   {
     "code": "3436",
@@ -12022,15 +11950,6 @@
     "sector": "陸運業",
     "size": "TOPIX Small 1",
     "size_rank": 3
-  },
-  {
-    "code": "9046",
-    "ticker": "9046.T",
-    "name": "神戸電鉄",
-    "label": "神戸電鉄",
-    "sector": "陸運業",
-    "size": "TOPIX Small 2",
-    "size_rank": 4
   },
   {
     "code": "9052",
@@ -13459,15 +13378,6 @@
     "ticker": "5726.T",
     "name": "大阪チタニウムテクノロジーズ",
     "label": "大阪チタニウム…",
-    "sector": "非鉄金属",
-    "size": "TOPIX Small 1",
-    "size_rank": 3
-  },
-  {
-    "code": "5727",
-    "ticker": "5727.T",
-    "name": "東邦チタニウム",
-    "label": "東邦チタニウム",
     "sector": "非鉄金属",
     "size": "TOPIX Small 1",
     "size_rank": 3
