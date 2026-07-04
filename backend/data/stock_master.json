@@ -2583,6 +2583,15 @@
     "size_rank": 4
   },
   {
+    "code": "166A",
+    "ticker": "166A.T",
+    "name": "タスキホールディングス",
+    "label": "タスキホールデ…",
+    "sector": "不動産業",
+    "size": "-",
+    "size_rank": 9
+  },
+  {
     "code": "2982",
     "ticker": "2982.T",
     "name": "ＡＤワークスグループ",
@@ -3811,15 +3820,6 @@
     "ticker": "4088.T",
     "name": "エア・ウォーター",
     "label": "エア・ウォーター",
-    "sector": "化学",
-    "size": "-",
-    "size_rank": 9
-  },
-  {
-    "code": "4974",
-    "ticker": "4974.T",
-    "name": "タカラバイオ",
-    "label": "タカラバイオ",
     "sector": "化学",
     "size": "-",
     "size_rank": 9
@@ -5310,15 +5310,6 @@
     "size_rank": 2
   },
   {
-    "code": "3549",
-    "ticker": "3549.T",
-    "name": "クスリのアオキホールディングス",
-    "label": "クスリのアオキ…",
-    "sector": "小売業",
-    "size": "TOPIX Mid400",
-    "size_rank": 2
-  },
-  {
     "code": "3563",
     "ticker": "3563.T",
     "name": "ＦＯＯＤ　＆　ＬＩＦＥ　ＣＯＭＰＡＮＩＥＳ",
@@ -6075,15 +6066,6 @@
     "size_rank": 4
   },
   {
-    "code": "3198",
-    "ticker": "3198.T",
-    "name": "ＳＦＰホールディングス",
-    "label": "ＳＦＰホールデ…",
-    "sector": "小売業",
-    "size": "TOPIX Small 2",
-    "size_rank": 4
-  },
-  {
     "code": "3199",
     "ticker": "3199.T",
     "name": "綿半ホールディングス",
@@ -6124,15 +6106,6 @@
     "ticker": "3539.T",
     "name": "ＪＭホールディングス",
     "label": "ＪＭホールディ…",
-    "sector": "小売業",
-    "size": "TOPIX Small 2",
-    "size_rank": 4
-  },
-  {
-    "code": "3546",
-    "ticker": "3546.T",
-    "name": "アレンザホールディングス",
-    "label": "アレンザホール…",
     "sector": "小売業",
     "size": "TOPIX Small 2",
     "size_rank": 4
@@ -6970,15 +6943,6 @@
     "ticker": "1433.T",
     "name": "ベステラ",
     "label": "ベステラ",
-    "sector": "建設業",
-    "size": "-",
-    "size_rank": 9
-  },
-  {
-    "code": "1726",
-    "ticker": "1726.T",
-    "name": "ビーアールホールディングス",
-    "label": "ビーアールホー…",
     "sector": "建設業",
     "size": "-",
     "size_rank": 9
@@ -8145,15 +8109,6 @@
     "size_rank": 4
   },
   {
-    "code": "4449",
-    "ticker": "4449.T",
-    "name": "ギフティ",
-    "label": "ギフティ",
-    "sector": "情報・通信業",
-    "size": "TOPIX Small 2",
-    "size_rank": 4
-  },
-  {
     "code": "4481",
     "ticker": "4481.T",
     "name": "ベース",
@@ -9153,6 +9108,15 @@
     "size_rank": 4
   },
   {
+    "code": "575A",
+    "ticker": "575A.T",
+    "name": "前澤ホールディングス",
+    "label": "前澤ホールディ…",
+    "sector": "機械",
+    "size": "TOPIX Small 2",
+    "size_rank": 4
+  },
+  {
     "code": "6151",
     "ticker": "6151.T",
     "name": "日東工器",
@@ -9646,6 +9610,15 @@
     "sector": "空運業",
     "size": "TOPIX Mid400",
     "size_rank": 2
+  },
+  {
+    "code": "92015",
+    "ticker": "92015.T",
+    "name": "日本航空株式会社第１回社債型種類株式",
+    "label": "日本航空株式会…",
+    "sector": "空運業",
+    "size": "-",
+    "size_rank": 9
   },
   {
     "code": "92025",
@@ -10564,15 +10537,6 @@
     "sector": "輸送用機器",
     "size": "TOPIX Small 2",
     "size_rank": 4
-  },
-  {
-    "code": "6201",
-    "ticker": "6201.T",
-    "name": "豊田自動織機",
-    "label": "豊田自動織機",
-    "sector": "輸送用機器",
-    "size": "-",
-    "size_rank": 9
   },
   {
     "code": "3436",
@@ -13927,15 +13891,6 @@
     "ticker": "2533.T",
     "name": "オエノンホールディングス",
     "label": "オエノンホール…",
-    "sector": "食料品",
-    "size": "TOPIX Small 2",
-    "size_rank": 4
-  },
-  {
-    "code": "2540",
-    "ticker": "2540.T",
-    "name": "養命酒製造",
-    "label": "養命酒製造",
     "sector": "食料品",
     "size": "TOPIX Small 2",
     "size_rank": 4
