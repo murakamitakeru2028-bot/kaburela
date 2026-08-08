@@ -1764,15 +1764,6 @@
     "size_rank": 4
   },
   {
-    "code": "6197",
-    "ticker": "6197.T",
-    "name": "ソラスト",
-    "label": "ソラスト",
-    "sector": "サービス業",
-    "size": "TOPIX Small 2",
-    "size_rank": 4
-  },
-  {
     "code": "6533",
     "ticker": "6533.T",
     "name": "Ｏｒｃｈｅｓｔｒａ　Ｈｏｌｄｉｎｇｓ",
@@ -2074,6 +2065,15 @@
     "ticker": "5261.T",
     "name": "リソルホールディングス",
     "label": "リソルホールデ…",
+    "sector": "サービス業",
+    "size": "-",
+    "size_rank": 9
+  },
+  {
+    "code": "6197",
+    "ticker": "6197.T",
+    "name": "ソラスト",
+    "label": "ソラスト",
     "sector": "サービス業",
     "size": "-",
     "size_rank": 9
@@ -2403,6 +2403,15 @@
     "size_rank": 3
   },
   {
+    "code": "166A",
+    "ticker": "166A.T",
+    "name": "タスキホールディングス",
+    "label": "タスキホールデ…",
+    "sector": "不動産業",
+    "size": "TOPIX Small 2",
+    "size_rank": 4
+  },
+  {
     "code": "2975",
     "ticker": "2975.T",
     "name": "スター・マイカ・ホールディングス",
@@ -2581,15 +2590,6 @@
     "sector": "不動産業",
     "size": "TOPIX Small 2",
     "size_rank": 4
-  },
-  {
-    "code": "166A",
-    "ticker": "166A.T",
-    "name": "タスキホールディングス",
-    "label": "タスキホールデ…",
-    "sector": "不動産業",
-    "size": "-",
-    "size_rank": 9
   },
   {
     "code": "2982",
@@ -4293,15 +4293,6 @@
     "size_rank": 2
   },
   {
-    "code": "8283",
-    "ticker": "8283.T",
-    "name": "ＰＡＬＴＡＣ",
-    "label": "ＰＡＬＴＡＣ",
-    "sector": "卸売業",
-    "size": "TOPIX Mid400",
-    "size_rank": 2
-  },
-  {
     "code": "9934",
     "ticker": "9934.T",
     "name": "因幡電機産業",
@@ -5184,6 +5175,15 @@
     "size_rank": 9
   },
   {
+    "code": "8283",
+    "ticker": "8283.T",
+    "name": "ＰＡＬＴＡＣ",
+    "label": "ＰＡＬＴＡＣ",
+    "sector": "卸売業",
+    "size": "-",
+    "size_rank": 9
+  },
+  {
     "code": "3382",
     "ticker": "3382.T",
     "name": "セブン＆アイ・ホールディングス",
@@ -5636,8 +5636,8 @@
   {
     "code": "3182",
     "ticker": "3182.T",
-    "name": "オイシックス・ラ・大地",
-    "label": "オイシックス・…",
+    "name": "オイシックス",
+    "label": "オイシックス",
     "sector": "小売業",
     "size": "TOPIX Small 1",
     "size_rank": 3
@@ -7040,8 +7040,8 @@
   {
     "code": "3626",
     "ticker": "3626.T",
-    "name": "ＴＩＳ",
-    "label": "ＴＩＳ",
+    "name": "ＴＩＳＩ",
+    "label": "ＴＩＳＩ",
     "sector": "情報・通信業",
     "size": "TOPIX Mid400",
     "size_rank": 2
@@ -8235,6 +8235,15 @@
     "size_rank": 4
   },
   {
+    "code": "590A",
+    "ticker": "590A.T",
+    "name": "ギフティグループ",
+    "label": "ギフティグループ",
+    "sector": "情報・通信業",
+    "size": "TOPIX Small 2",
+    "size_rank": 4
+  },
+  {
     "code": "7844",
     "ticker": "7844.T",
     "name": "マーベラス",
@@ -8361,15 +8370,6 @@
     "size_rank": 4
   },
   {
-    "code": "3681",
-    "ticker": "3681.T",
-    "name": "ブイキューブ",
-    "label": "ブイキューブ",
-    "sector": "情報・通信業",
-    "size": "-",
-    "size_rank": 9
-  },
-  {
     "code": "3963",
     "ticker": "3963.T",
     "name": "シンクロ・フード",
@@ -8401,15 +8401,6 @@
     "ticker": "4392.T",
     "name": "ＦＩＧ",
     "label": "ＦＩＧ",
-    "sector": "情報・通信業",
-    "size": "-",
-    "size_rank": 9
-  },
-  {
-    "code": "4446",
-    "ticker": "4446.T",
-    "name": "Ｌｉｎｋ－Ｕグループ",
-    "label": "Ｌｉｎｋ－Ｕグ…",
     "sector": "情報・通信業",
     "size": "-",
     "size_rank": 9
@@ -9011,8 +9002,8 @@
   {
     "code": "6420",
     "ticker": "6420.T",
-    "name": "ガリレイ",
-    "label": "ガリレイ",
+    "name": "ガリレイホールディングス",
+    "label": "ガリレイホール…",
     "sector": "機械",
     "size": "TOPIX Small 1",
     "size_rank": 3
@@ -9407,8 +9398,8 @@
   {
     "code": "6459",
     "ticker": "6459.T",
-    "name": "大和冷機工業",
-    "label": "大和冷機工業",
+    "name": "だいわ",
+    "label": "だいわ",
     "sector": "機械",
     "size": "TOPIX Small 2",
     "size_rank": 4
@@ -9803,8 +9794,8 @@
   {
     "code": "368A",
     "ticker": "368A.T",
-    "name": "北里コーポレーション",
-    "label": "北里コーポレー…",
+    "name": "北里",
+    "label": "北里",
     "sector": "精密機器",
     "size": "TOPIX Small 2",
     "size_rank": 4
@@ -13547,8 +13538,8 @@
   {
     "code": "2501",
     "ticker": "2501.T",
-    "name": "サッポロホールディングス",
-    "label": "サッポロホール…",
+    "name": "サッポロビール",
+    "label": "サッポロビール",
     "sector": "食料品",
     "size": "TOPIX Mid400",
     "size_rank": 2
